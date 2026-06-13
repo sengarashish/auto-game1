@@ -34,34 +34,36 @@ export class QuizEngine {
     }));
   }
 
-  /** Generate `questionCount` questions, retrying to avoid back-to-back dupes. */
+  /**
+   * Generate `questionCount` questions, evenly cycling through the selected
+   * topics (so a multi-topic quiz covers each one), retrying to avoid
+   * back-to-back duplicate prompts.
+   */
   private buildQuestions(rng: ReturnType<typeof createRng>): Question[] {
+    const topics = this.config.topicIds.length > 0 ? this.config.topicIds : ['addition'];
     const out: Question[] = [];
     const seenPrompts = new Set<string>();
     let index = 0;
     let guard = 0;
+
+    const makeOpts = (): GenOptions => ({
+      // Round-robin across topics for even coverage.
+      topicId: topics[out.length % topics.length],
+      gradeBand: this.config.gradeBand,
+      difficulty: this.config.difficulty,
+      index: index++,
+    });
+
     while (out.length < this.config.questionCount && guard++ < this.config.questionCount * 25) {
-      const opts: GenOptions = {
-        topicId: this.config.topicId,
-        gradeBand: this.config.gradeBand,
-        difficulty: this.config.difficulty,
-        index: index++,
-      };
-      const q = generateQuestion(opts, rng);
+      const q = generateQuestion(makeOpts(), rng);
       const key = `${q.prompt}|${q.promptImage ?? ''}`;
       if (seenPrompts.has(key)) continue;
       seenPrompts.add(key);
       out.push(q);
     }
-    // If the topic has a tiny domain, allow repeats to reach the count.
+    // If the topic domain is tiny, allow repeats to reach the requested count.
     while (out.length < this.config.questionCount) {
-      const opts: GenOptions = {
-        topicId: this.config.topicId,
-        gradeBand: this.config.gradeBand,
-        difficulty: this.config.difficulty,
-        index: index++,
-      };
-      out.push(generateQuestion(opts, rng));
+      out.push(generateQuestion(makeOpts(), rng));
     }
     return out;
   }

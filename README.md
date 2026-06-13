@@ -13,9 +13,17 @@ difficulty, then play an auto-graded quiz packed with sounds, visuals, character
   beginning sounds, rhyming, and sight words. Generated + dataset-backed, also auto-graded.
 - **Curriculum-aligned** — organized by grade bands (PK–K, 1–2, 3–5, 6–8) and tagged with both
   **Common Core (CCSS)** and **Florida B.E.S.T.** standards.
-- **Gamified UX** — mascot characters, star meter, badges, encouraging feedback, confetti.
-- **Selectable themes** — Space, Ocean, Jungle, Candy.
-- **Audio + visuals** — spoken prompts/letter sounds (Web Speech API) and sound effects.
+- **Build-your-quiz wizard** — clean step-by-step flow (subject & grade → **pick one or more
+  topics** → difficulty & length → theme), so nothing is squeezed and the Start button never
+  overlaps content.
+- **Gamified UX** — mascot characters you can tap, **answer streaks**, animated/bobbing answer
+  choices, star meter, badges, and **randomized celebration effects** (no two correct answers feel
+  the same).
+- **Selectable themes with live animated previews** — Space, Ocean, Jungle, Candy — each with its
+  own mascot, ambient particle animation (twinkles, bubbles, falling leaves, candy), and
+  tap-to-sparkle interactivity. Tapping a theme changes the whole scene instantly.
+- **Audio + visuals** — spoken prompts/letter sounds (Web Speech API, auto-selects the best
+  natural OS voice) and varied, synthesized sound effects + particle bursts.
 - **Local kid profiles** — multiple kids, each with an avatar and saved progress (no accounts,
   no personal data — COPPA-friendly).
 - **Accessible** — large touch targets, colorblind-safe feedback, dyslexia-friendly font option,
@@ -45,11 +53,31 @@ correct answer, so grading is automatic and reliable. ELA word data lives in bun
 backend a drop-in swap. See [CLAUDE.md](./CLAUDE.md) for the full architecture and a guide to
 adding new topics.
 
-## 📦 Deploying
+## 🔊 A note on the voice (Web Speech vs. Piper)
 
-This is a fully static app. A GitHub Actions workflow (`.github/workflows/deploy.yml`) builds and
-publishes to GitHub Pages. After adding your remote, set the repo name as `BASE_PATH` in that
-workflow (e.g. `/auto-game1/`).
+Narration uses the browser's built-in **Web Speech API**, which plays the operating system's
+voices. We auto-rank and pick the highest-quality one available (Apple's "Samantha", Windows
+"Natural"/Edge neural voices, Chrome's "Google US English", etc.). This is the best quality you can
+get with **zero download** and it works offline.
+
+A neural TTS like **Piper** can run in the browser via WebAssembly, but each voice model is a
+~20–60 MB download — not "small," and it adds startup latency and bundle complexity. For a kids'
+game where instant, offline playback matters, Web Speech is the better default. If you later want
+Piper-grade voices, the swap point is `src/audio/AudioManager.ts` (`speak()`); drop in a
+WASM/ONNX TTS there behind a setting and the rest of the app is unchanged.
+
+## 📦 Deploying (free, no hosting bill)
+
+This is a fully static app, so **GitHub Pages hosts it for free**. A workflow
+(`.github/workflows/deploy.yml`) builds and publishes automatically on push to `main`:
+
+1. Push this repo to GitHub.
+2. In **Settings → Pages**, set **Source = GitHub Actions**.
+3. Set `BASE_PATH` in the workflow to `/<your-repo-name>/` (already `/auto-game1/`).
+4. Push to `main` — the site deploys to `https://<you>.github.io/<repo>/`.
+
+(Netlify, Cloudflare Pages, and Vercel also work the same way for free — just `npm run build` and
+serve `dist/`.)
 
 ## 📁 Project layout
 

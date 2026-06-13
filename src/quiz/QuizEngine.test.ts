@@ -4,7 +4,7 @@ import type { QuizConfig } from './types';
 
 const baseConfig: QuizConfig = {
   subjectId: 'math',
-  topicId: 'addition',
+  topicIds: ['addition'],
   gradeBand: '1-2',
   difficulty: 1,
   questionCount: 8,
@@ -21,6 +21,16 @@ describe('QuizEngine', () => {
   it('builds the requested number of questions', () => {
     const e = new QuizEngine(baseConfig);
     expect(e.total).toBe(8);
+  });
+
+  it('mixes questions across multiple selected topics', () => {
+    const e = new QuizEngine({
+      ...baseConfig,
+      topicIds: ['addition', 'subtraction', 'multiplication'],
+      questionCount: 12,
+    });
+    const topicsSeen = new Set(e.questions.map((q) => q.topicId));
+    expect(topicsSeen).toEqual(new Set(['addition', 'subtraction', 'multiplication']));
   });
 
   it('grades a full perfect run as 3 stars', () => {

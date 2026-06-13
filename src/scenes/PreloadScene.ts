@@ -3,6 +3,7 @@ import { SceneKeys } from './keys';
 import { addGradientBackground } from '../ui/scenery';
 import { getTheme } from '../config/themes';
 import { GAME_WIDTH, GAME_HEIGHT } from '../config/gameConfig';
+import { ensureParticleTextures } from '../ui/textures';
 
 /**
  * Preload scene. We render with emoji + synthesized audio, so there are no
@@ -24,6 +25,7 @@ export class PreloadScene extends Phaser.Scene {
   }
 
   create(): void {
+    ensureParticleTextures(this);
     addGradientBackground(this, getTheme('space'));
     this.add
       .text(GAME_WIDTH / 2, GAME_HEIGHT / 2 - 40, '🚀  Quiz Quest', {

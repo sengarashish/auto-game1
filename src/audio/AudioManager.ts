@@ -6,7 +6,7 @@
  */
 import { getSettings } from '../config/settings';
 
-type SfxName = 'correct' | 'wrong' | 'click' | 'win' | 'star';
+type SfxName = 'correct' | 'wrong' | 'click' | 'win' | 'star' | 'pop' | 'whoosh' | 'streak';
 
 class AudioManagerImpl {
   private ctx: AudioContext | null = null;
@@ -34,12 +34,38 @@ class AudioManagerImpl {
   private pickVoice(): void {
     if (this.voice || typeof speechSynthesis === 'undefined') return;
     const voices = speechSynthesis.getVoices();
-    // Prefer a US English voice; fall back to any English, then default.
-    this.voice =
-      voices.find((v) => v.lang === 'en-US') ??
-      voices.find((v) => v.lang.startsWith('en')) ??
-      voices[0] ??
-      null;
+    if (voices.length === 0) return;
+
+    // Prefer high-quality neural/natural OS voices (these sound great and cost
+    // zero download — the OS already ships them). We rank en-US voices by name.
+    const PREFERRED = [
+      'natural',
+      'premium',
+      'enhanced',
+      'neural',
+      'google us english',
+      'samantha',
+      'aaron',
+      'ava',
+      'allison',
+      'zira',
+    ];
+    const enUS = voices.filter((v) => v.lang === 'en-US');
+    const enAny = voices.filter((v) => v.lang.startsWith('en'));
+    const pool = enUS.length ? enUS : enAny.length ? enAny : voices;
+
+    const ranked = [...pool].sort((a, b) => this.voiceScore(b, PREFERRED) - this.voiceScore(a, PREFERRED));
+    this.voice = ranked[0] ?? null;
+  }
+
+  private voiceScore(v: SpeechSynthesisVoice, preferred: string[]): number {
+    const name = v.name.toLowerCase();
+    let score = 0;
+    preferred.forEach((p, i) => {
+      if (name.includes(p)) score += preferred.length - i;
+    });
+    if (v.localService) score += 1; // local = no network latency
+    return score;
   }
 
   /** Speak text aloud (kid-paced) if narration is enabled. */
@@ -67,35 +93,54 @@ class AudioManagerImpl {
     if (!ctx) return;
     if (ctx.state === 'suspended') void ctx.resume();
 
+    const pick = <T,>(arr: T[]): T => arr[Math.floor(Math.random() * arr.length)];
+
     switch (name) {
       case 'click':
         this.tone(ctx, [{ f: 440, t: 0, d: 0.06 }], 0.12, 'triangle');
         break;
-      case 'correct':
+      case 'pop':
+        this.tone(ctx, [{ f: pick([660, 720, 784, 880]), t: 0, d: 0.08 }], 0.14, 'sine');
+        break;
+      case 'whoosh':
+        this.tone(ctx, [{ f: 300, t: 0, d: 0.18 }], 0.08, 'sawtooth');
+        break;
+      case 'correct': {
+        // Randomized happy arpeggios so it doesn't get repetitive.
+        const sets = [
+          [523, 659, 784],
+          [587, 740, 880],
+          [659, 784, 988],
+          [523, 698, 880],
+        ];
+        const notes = pick(sets).map((f, i) => ({ f, t: i * 0.1, d: 0.16 }));
+        this.tone(ctx, notes, 0.18, pick<OscillatorType>(['sine', 'triangle']));
+        break;
+      }
+      case 'wrong': {
+        const sets = [
+          [311, 233],
+          [349, 262],
+          [294, 220],
+        ];
+        const notes = pick(sets).map((f, i) => ({ f, t: i * 0.12, d: 0.2 }));
+        this.tone(ctx, notes, 0.16, 'sine');
+        break;
+      }
+      case 'streak':
         this.tone(
           ctx,
           [
-            { f: 523, t: 0, d: 0.12 },
-            { f: 659, t: 0.1, d: 0.12 },
-            { f: 784, t: 0.2, d: 0.18 },
+            { f: 784, t: 0, d: 0.1 },
+            { f: 988, t: 0.08, d: 0.1 },
+            { f: 1319, t: 0.16, d: 0.16 },
           ],
           0.18,
-          'sine',
-        );
-        break;
-      case 'wrong':
-        this.tone(
-          ctx,
-          [
-            { f: 311, t: 0, d: 0.18 },
-            { f: 233, t: 0.12, d: 0.22 },
-          ],
-          0.16,
-          'sine',
+          'triangle',
         );
         break;
       case 'star':
-        this.tone(ctx, [{ f: 988, t: 0, d: 0.12 }], 0.14, 'triangle');
+        this.tone(ctx, [{ f: pick([880, 988, 1047]), t: 0, d: 0.12 }], 0.14, 'triangle');
         break;
       case 'win':
         this.tone(

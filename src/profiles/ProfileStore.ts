@@ -101,13 +101,15 @@ export function recordResult(id: string, result: QuizResult): string[] {
   const p = profiles.find((x) => x.id === id);
   if (!p) return [];
 
-  const topicId = result.config.topicId;
-  const prevBest = p.bestStars[topicId] ?? 0;
-  if (result.stars > prevBest) {
-    p.totalStars += result.stars - prevBest;
-    p.bestStars[topicId] = result.stars;
+  // Credit every topic that appeared in this (possibly multi-topic) quiz.
+  for (const topicId of result.config.topicIds) {
+    const prevBest = p.bestStars[topicId] ?? 0;
+    if (result.stars > prevBest) {
+      p.totalStars += result.stars - prevBest;
+      p.bestStars[topicId] = result.stars;
+    }
+    p.played[topicId] = (p.played[topicId] ?? 0) + 1;
   }
-  p.played[topicId] = (p.played[topicId] ?? 0) + 1;
 
   const newBadges = evaluateBadges(p, result).filter((b) => !p.badges.includes(b));
   p.badges.push(...newBadges);

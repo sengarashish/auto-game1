@@ -7,6 +7,8 @@ import { Button } from '../ui/Button';
 import { Audio } from '../audio/AudioManager';
 import { getSettings } from '../config/settings';
 import { confetti } from '../ui/effects';
+import { Ambiance } from '../ui/ambiance';
+import { ensureParticleTextures } from '../ui/textures';
 import { BADGE_INFO } from '../profiles/ProfileStore';
 import { getTopic } from '../data/catalog';
 
@@ -26,11 +28,20 @@ export class ResultsScene extends Phaser.Scene {
 
   create(): void {
     const { result } = this.resultsData;
+    ensureParticleTextures(this);
     addGradientBackground(this, this.theme);
+    new Ambiance(this, this.theme).start();
 
-    const topic = getTopic(result.config.topicId);
+    const topicIds = result.config.topicIds;
+    let heading: string;
+    if (topicIds.length === 1) {
+      const topic = getTopic(topicIds[0]);
+      heading = `${topic?.icon ?? ''} ${topic?.title ?? 'Quiz'} Complete!`;
+    } else {
+      heading = `🎲 Mixed Quiz Complete!`;
+    }
     this.add
-      .text(GAME_WIDTH / 2, 70, `${topic?.icon ?? ''} ${topic?.title ?? 'Quiz'} Complete!`, {
+      .text(GAME_WIDTH / 2, 70, heading, {
         fontFamily: 'system-ui, sans-serif',
         fontSize: '40px',
         color: '#ffffff',

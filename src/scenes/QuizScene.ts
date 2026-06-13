@@ -6,7 +6,9 @@ import { GAME_WIDTH, GAME_HEIGHT } from '../config/gameConfig';
 import { Button } from '../ui/Button';
 import { Audio } from '../audio/AudioManager';
 import { getSettings } from '../config/settings';
-import { shake, starburst } from '../ui/effects';
+import { randomCelebration, shake, wrongPuff } from '../ui/effects';
+import { Ambiance, enableTapSparkles } from '../ui/ambiance';
+import { ensureParticleTextures } from '../ui/textures';
 import { QuizEngine } from '../quiz/QuizEngine';
 import type { Choice, Question } from '../quiz/types';
 import { getActiveProfile, recordResult } from '../profiles/ProfileStore';
@@ -22,7 +24,9 @@ export class QuizScene extends Phaser.Scene {
   private mascot!: Phaser.GameObjects.Text;
   private progressFill!: Phaser.GameObjects.Rectangle;
   private starText!: Phaser.GameObjects.Text;
+  private streakText!: Phaser.GameObjects.Text;
   private choiceButtons: Button[] = [];
+  private streak = 0;
 
   constructor() {
     super(SceneKeys.Quiz);
@@ -38,7 +42,10 @@ export class QuizScene extends Phaser.Scene {
 
   create(): void {
     Audio.unlock();
+    ensureParticleTextures(this);
     addGradientBackground(this, this.theme);
+    new Ambiance(this, this.theme).start();
+    enableTapSparkles(this, this.theme);
 
     // Top bar: quit, progress, stars-so-far.
     new Button(this, 70, 44, 'Quit', {
@@ -59,8 +66,32 @@ export class QuizScene extends Phaser.Scene {
       .text(GAME_WIDTH - 70, 44, '⭐ 0', { fontSize: '26px', color: '#ffd166' })
       .setOrigin(0.5);
 
-    // Mascot in the corner.
-    this.mascot = this.add.text(90, GAME_HEIGHT - 110, this.theme.mascot, { fontSize: '90px' }).setOrigin(0.5);
+    // Streak meter (hidden until a streak builds).
+    this.streakText = this.add
+      .text(GAME_WIDTH - 70, 78, '', { fontSize: '22px', color: '#ff7b00', fontStyle: 'bold' })
+      .setOrigin(0.5);
+
+    // Mascot in the corner — tap it for a cheer + sparkles (interactive fun).
+    this.mascot = this.add
+      .text(90, GAME_HEIGHT - 110, this.theme.mascot, { fontSize: '90px' })
+      .setOrigin(0.5)
+      .setInteractive({ useHandCursor: true });
+    this.mascot.on('pointerup', () => {
+      Audio.play('pop');
+      this.cheer(true);
+      this.tweens.add({ targets: this.mascot, scale: 1.2, angle: 8, duration: 120, yoyo: true });
+    });
+    // Idle breathing.
+    if (!getSettings().reducedMotion) {
+      this.tweens.add({
+        targets: this.mascot,
+        scaleY: 1.06,
+        duration: 1400,
+        yoyo: true,
+        repeat: -1,
+        ease: 'Sine.inOut',
+      });
+    }
 
     this.showQuestion();
   }
@@ -138,6 +169,7 @@ export class QuizScene extends Phaser.Scene {
     const spacingX = 420;
     const spacingY = 110;
 
+    const reduced = getSettings().reducedMotion;
     choices.forEach((choice, i) => {
       const col = i % cols;
       const row = Math.floor(i / cols);
@@ -152,6 +184,29 @@ export class QuizScene extends Phaser.Scene {
         onClick: () => this.onAnswer(choice, btn),
       });
       this.choiceButtons.push(btn);
+
+      if (!reduced) {
+        // Bouncy staggered entrance...
+        btn.setScale(0);
+        this.tweens.add({
+          targets: btn,
+          scale: 1,
+          duration: 320,
+          delay: 120 * i,
+          ease: 'Back.out',
+          onComplete: () => {
+            // ...then a gentle, lively idle bob so options feel alive.
+            this.tweens.add({
+              targets: btn,
+              y: y - 6,
+              duration: 1100 + i * 120,
+              yoyo: true,
+              repeat: -1,
+              ease: 'Sine.inOut',
+            });
+          },
+        });
+      }
     });
   }
 
@@ -163,35 +218,75 @@ export class QuizScene extends Phaser.Scene {
 
     if (correct) {
       this.locked = true;
+      this.tweens.killTweensOf(btn);
       btn.setFill(this.theme.correct);
       this.engine.submit(choice.id, this.attempts);
+
+      // Game-y juice: the chosen answer pops, themed particles erupt, mascot
+      // jumps, and a random celebration variant plays so it never feels samey.
       Audio.play('correct');
-      this.cheer(true);
-      starburst(this, btn.x, btn.y);
+      if (!getSettings().reducedMotion) {
+        this.tweens.add({ targets: btn, scale: 1.18, duration: 140, yoyo: true });
+      }
+      randomCelebration(this, btn.x, btn.y, this.theme);
       this.showCheck(btn.x + 150, btn.y, true);
-      this.time.delayedCall(getSettings().reducedMotion ? 400 : 1100, () => this.next());
+      this.cheer(true);
+      this.bumpStreak();
+      this.dimOthers(btn);
+      this.time.delayedCall(getSettings().reducedMotion ? 450 : 1200, () => this.next());
     } else {
-      // Gentle: mark wrong, allow another try. After 1 wrong attempt, reveal.
+      // Gentle: mark wrong, allow another try. After the 2nd miss, reveal.
+      this.tweens.killTweensOf(btn);
       btn.setFill(this.theme.wrong);
       this.showCheck(btn.x + 150, btn.y, false);
       Audio.play('wrong');
       shake(this, btn);
+      wrongPuff(this, btn.x, btn.y);
       this.cheer(false);
+      this.resetStreak();
       if (this.attempts >= 2) {
         this.locked = true;
         this.engine.submit(choice.id, this.attempts);
         this.revealCorrect();
-        this.time.delayedCall(1300, () => this.next());
+        this.time.delayedCall(1400, () => this.next());
       }
     }
+  }
+
+  private bumpStreak(): void {
+    this.streak++;
+    if (this.streak >= 2) {
+      this.streakText.setText(`🔥 ${this.streak} streak!`);
+      if (!getSettings().reducedMotion) {
+        this.streakText.setScale(1.5);
+        this.tweens.add({ targets: this.streakText, scale: 1, duration: 300, ease: 'Back.out' });
+      }
+      if (this.streak >= 3) Audio.play('streak');
+    }
+  }
+
+  private resetStreak(): void {
+    this.streak = 0;
+    this.streakText.setText('');
+  }
+
+  /** Fade the non-chosen options so the correct pick stands out. */
+  private dimOthers(chosen: Button): void {
+    this.choiceButtons.forEach((b) => {
+      if (b !== chosen) {
+        this.tweens.killTweensOf(b);
+        this.tweens.add({ targets: b, alpha: 0.4, duration: 250 });
+      }
+    });
   }
 
   private revealCorrect(): void {
     const q = this.engine.currentQuestion;
     this.choiceButtons.forEach((btn, i) => {
+      this.tweens.killTweensOf(btn);
       if (q.choices?.[i]?.id === q.answerId) {
         btn.setFill(this.theme.correct);
-        starburst(this, btn.x, btn.y);
+        randomCelebration(this, btn.x, btn.y, this.theme);
       }
     });
     if (q.explanation) {
@@ -202,6 +297,10 @@ export class QuizScene extends Phaser.Scene {
   private showCheck(x: number, y: number, ok: boolean): void {
     // Icon paired with color so feedback never relies on color alone (a11y).
     const t = this.add.text(x, y, ok ? '✅' : '❌', { fontSize: '40px' }).setOrigin(0.5).setDepth(900);
+    if (!getSettings().reducedMotion) {
+      t.setScale(0);
+      this.tweens.add({ targets: t, scale: 1, duration: 250, ease: 'Back.out' });
+    }
     this.time.delayedCall(1200, () => t.destroy());
   }
 

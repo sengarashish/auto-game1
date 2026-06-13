@@ -66,7 +66,8 @@ export interface GenOptions {
 /** Configuration assembled by MenuScene and consumed by QuizEngine. */
 export interface QuizConfig {
   subjectId: SubjectId;
-  topicId: string;
+  /** One or more topics; the engine mixes questions evenly across them. */
+  topicIds: string[];
   gradeBand: GradeBand;
   difficulty: Difficulty;
   questionCount: number;

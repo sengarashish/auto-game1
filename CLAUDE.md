@@ -67,6 +67,19 @@ ProfileScene → MenuScene → QuizScene → ResultsScene
 - **`src/profiles/ProfileStore.ts`** — `localStorage` CRUD for kid profiles, stars, badges.
 - **`src/audio/AudioManager.ts`** — SFX + narration.
 - **`src/scenes/`**, **`src/ui/`** — Phaser scenes and reusable display objects.
+- **`src/ui/textures.ts`** — generates particle textures procedurally at boot (no asset files);
+  call `ensureParticleTextures(scene)` once per scene that emits particles.
+- **`src/ui/ambiance.ts`** — `Ambiance` (theme-relevant ambient animation) + `enableTapSparkles`
+  (tap/touch interactivity). Both honor reduced-motion. Swap emoji drifters for kenney.nl CC0
+  sprites later if desired — load them in `PreloadScene` and the API is unchanged.
+- **`src/ui/effects.ts`** — `randomCelebration` (random themed burst on correct answers), plus
+  `confetti`, `wrongPuff`, `shake`, `emojiPop`.
+
+### Multi-topic quizzes
+`QuizConfig.topicIds` is an array. `QuizEngine.buildQuestions` round-robins across the selected
+topics for even coverage, and `ProfileStore.recordResult` credits stars/plays to every topic in
+the quiz. A single-topic quiz is just a one-element array. `MenuScene` is a step wizard that
+multi-selects topics into this array.
 
 ## How to add a new question topic
 
