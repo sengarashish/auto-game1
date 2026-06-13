@@ -1,6 +1,6 @@
 import Phaser from 'phaser';
 import { SceneKeys, type QuizSceneData, type ResultsSceneData } from './keys';
-import { addGradientBackground, addPanel } from '../ui/scenery';
+import { addGradientBackground, addPanel, primaryText, accentText } from '../ui/scenery';
 import { getTheme, type Theme } from '../config/themes';
 import { GAME_WIDTH, GAME_HEIGHT } from '../config/gameConfig';
 import { Button } from '../ui/Button';
@@ -44,7 +44,7 @@ export class ResultsScene extends Phaser.Scene {
       .text(GAME_WIDTH / 2, 70, heading, {
         fontFamily: 'system-ui, sans-serif',
         fontSize: '40px',
-        color: '#ffffff',
+        color: primaryText(this.theme),
         fontStyle: 'bold',
       })
       .setOrigin(0.5);
@@ -77,7 +77,7 @@ export class ResultsScene extends Phaser.Scene {
       .text(GAME_WIDTH / 2, 310, `${result.correctCount} / ${result.total} correct`, {
         fontFamily: 'system-ui, sans-serif',
         fontSize: '34px',
-        color: '#ffffff',
+        color: primaryText(this.theme),
         fontStyle: 'bold',
       })
       .setOrigin(0.5);
@@ -86,7 +86,7 @@ export class ResultsScene extends Phaser.Scene {
       .text(GAME_WIDTH / 2, 354, this.encouragement(result.accuracy), {
         fontFamily: 'system-ui, sans-serif',
         fontSize: '24px',
-        color: '#ffd166',
+        color: accentText(this.theme),
       })
       .setOrigin(0.5);
 
@@ -97,7 +97,7 @@ export class ResultsScene extends Phaser.Scene {
         .text(GAME_WIDTH / 2, badgeY - 36, 'New Badges!', {
           fontFamily: 'system-ui, sans-serif',
           fontSize: '24px',
-          color: '#ffffff',
+          color: primaryText(this.theme),
           fontStyle: 'bold',
         })
         .setOrigin(0.5);
@@ -111,7 +111,7 @@ export class ResultsScene extends Phaser.Scene {
           .text(x + 20, badgeY + 30, info.label, {
             fontFamily: 'system-ui, sans-serif',
             fontSize: '18px',
-            color: '#ffffff',
+            color: primaryText(this.theme),
             align: 'center',
             wordWrap: { width: 110 },
           })

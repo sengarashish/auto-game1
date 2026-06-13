@@ -11,6 +11,8 @@ type SfxName = 'correct' | 'wrong' | 'click' | 'win' | 'star' | 'pop' | 'whoosh'
 class AudioManagerImpl {
   private ctx: AudioContext | null = null;
   private voice: SpeechSynthesisVoice | null = null;
+  private speechQueue: string[] = [];
+  private keepAlive: ReturnType<typeof setInterval> | null = null;
 
   /** Call from a user-gesture handler to unlock audio on mobile/Safari. */
   unlock(): void {
@@ -68,21 +70,63 @@ class AudioManagerImpl {
     return score;
   }
 
-  /** Speak text aloud (kid-paced) if narration is enabled. */
-  speak(text: string, opts: { rate?: number; force?: boolean } = {}): void {
+  /**
+   * Speak text aloud (kid-paced) using the native Web Speech API + the best
+   * natural OS voice we found. Robust against the two common browser quirks:
+   *  - emojis are stripped so they aren't read as "star", "check mark", etc.;
+   *  - text is queued/chunked and kept alive so long prompts aren't truncated
+   *    (Chrome silently stops speech after ~15s and races on cancel→speak).
+   */
+  speak(text: string, opts: { rate?: number; pitch?: number; force?: boolean } = {}): void {
     if (!opts.force && !getSettings().narration) return;
     if (typeof speechSynthesis === 'undefined' || !text) return;
+
+    const clean = stripForSpeech(text);
+    if (!clean) return;
+
     this.pickVoice();
     speechSynthesis.cancel();
-    const u = new SpeechSynthesisUtterance(text);
+    this.speechQueue = chunkText(clean);
+    // A small delay after cancel() avoids the race that drops the first words.
+    setTimeout(() => this.drainSpeech(opts.rate, opts.pitch), 80);
+    this.startKeepAlive();
+  }
+
+  private drainSpeech(rate?: number, pitch?: number): void {
+    const next = this.speechQueue.shift();
+    if (next === undefined) {
+      this.stopKeepAlive();
+      return;
+    }
+    const u = new SpeechSynthesisUtterance(next);
     if (this.voice) u.voice = this.voice;
     u.lang = 'en-US';
-    u.rate = opts.rate ?? 0.95;
-    u.pitch = 1.05;
+    u.rate = rate ?? 0.9; // a touch slower for young readers
+    u.pitch = pitch ?? 1.25; // higher, friendlier pitch for kids
+    u.onend = () => this.drainSpeech(rate, pitch);
+    u.onerror = () => this.drainSpeech(rate, pitch);
     speechSynthesis.speak(u);
   }
 
+  private startKeepAlive(): void {
+    this.stopKeepAlive();
+    this.keepAlive = setInterval(() => {
+      if (typeof speechSynthesis !== 'undefined' && speechSynthesis.speaking) {
+        speechSynthesis.resume();
+      }
+    }, 5000);
+  }
+
+  private stopKeepAlive(): void {
+    if (this.keepAlive) {
+      clearInterval(this.keepAlive);
+      this.keepAlive = null;
+    }
+  }
+
   stopSpeech(): void {
+    this.speechQueue = [];
+    this.stopKeepAlive();
     if (typeof speechSynthesis !== 'undefined') speechSynthesis.cancel();
   }
 
@@ -187,4 +231,41 @@ export const Audio = new AudioManagerImpl();
 // Voices load asynchronously in some browsers.
 if (typeof speechSynthesis !== 'undefined') {
   speechSynthesis.onvoiceschanged = () => Audio.unlock();
+}
+
+/**
+ * Remove emoji / pictographs so TTS doesn't read "star", "check mark", etc.
+ * Deliberately does NOT touch ASCII digits or math symbols (×, ÷, −) — only
+ * pictographic characters, variation selectors, ZWJ, keycap marks, and flags.
+ */
+// Pictographs + regional-indicator flags (replaced with a space).
+const SPEECH_PICTO_RE = new RegExp('\\p{Extended_Pictographic}|[\\u{1F1E6}-\\u{1F1FF}]', 'gu');
+// Variation selector (FE0F), ZWJ (200D), keycap (20E3) — removed outright.
+// eslint-disable-next-line no-misleading-character-class -- intentional: stripping combining marks
+const SPEECH_MOD_RE = new RegExp('[\\u{FE00}-\\u{FE0F}\\u{200D}\\u{20E3}]', 'gu');
+
+export function stripForSpeech(text: string): string {
+  return text
+    .replace(SPEECH_PICTO_RE, ' ')
+    .replace(SPEECH_MOD_RE, '')
+    .replace(/\s+/g, ' ')
+    .trim();
+}
+
+/** Split long text into <=180-char chunks on word boundaries for reliable TTS. */
+export function chunkText(text: string): string[] {
+  const MAX = 180;
+  if (text.length <= MAX) return [text];
+  const out: string[] = [];
+  let cur = '';
+  for (const word of text.split(' ')) {
+    if ((cur + ' ' + word).trim().length > MAX) {
+      if (cur.trim()) out.push(cur.trim());
+      cur = word;
+    } else {
+      cur = cur ? `${cur} ${word}` : word;
+    }
+  }
+  if (cur.trim()) out.push(cur.trim());
+  return out;
 }

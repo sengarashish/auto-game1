@@ -1,6 +1,13 @@
 import Phaser from 'phaser';
 import { SceneKeys, type QuizSceneData } from './keys';
-import { addGradientBackground, addPanel } from '../ui/scenery';
+import {
+  addGradientBackground,
+  addPanel,
+  primaryText,
+  accentText,
+  mutedText,
+  textOn,
+} from '../ui/scenery';
 import { getTheme, THEMES } from '../config/themes';
 import { GAME_WIDTH, GAME_HEIGHT } from '../config/gameConfig';
 import { Button } from '../ui/Button';
@@ -31,6 +38,8 @@ export class MenuScene extends Phaser.Scene {
   private bg?: Phaser.GameObjects.Image;
   private content!: Phaser.GameObjects.Container;
   private headerTitle!: Phaser.GameObjects.Text;
+  private profileNameText!: Phaser.GameObjects.Text;
+  private profileStatsText!: Phaser.GameObjects.Text;
   private stepDots: Phaser.GameObjects.Arc[] = [];
   private backBtn!: Button;
   private nextBtn!: Button;
@@ -92,7 +101,7 @@ export class MenuScene extends Phaser.Scene {
 
     // Profile chip + controls (top-left / top-right).
     this.add.text(30, 28, this.profile.avatar, { fontSize: '40px' }).setDepth(5);
-    this.add
+    this.profileNameText = this.add
       .text(80, 30, this.profile.name, {
         fontFamily: 'system-ui, sans-serif',
         fontSize: '24px',
@@ -100,10 +109,12 @@ export class MenuScene extends Phaser.Scene {
         fontStyle: 'bold',
       })
       .setDepth(5);
-    this.add.text(80, 60, `⭐ ${this.profile.totalStars}  🏅 ${this.profile.badges.length}`, {
-      fontSize: '18px',
-      color: '#ffd166',
-    }).setDepth(5);
+    this.profileStatsText = this.add
+      .text(80, 60, `⭐ ${this.profile.totalStars}  🏅 ${this.profile.badges.length}`, {
+        fontSize: '18px',
+        color: '#ffd166',
+      })
+      .setDepth(5);
 
     this.iconButton(GAME_WIDTH - 50, 44, '⚙️', () => this.showSettings());
     this.iconButton(GAME_WIDTH - 110, 44, '🔄', () => this.scene.start(SceneKeys.Profile));
@@ -137,6 +148,11 @@ export class MenuScene extends Phaser.Scene {
     this.ambiance?.stop();
     this.ambiance = new Ambiance(this, this.theme).start();
     this.nextBtn.setFill(this.theme.accent);
+
+    // Keep persistent chrome readable when the theme changes mid-flow.
+    this.headerTitle.setColor(primaryText(this.theme));
+    this.profileNameText.setColor(primaryText(this.theme));
+    this.profileStatsText.setColor(accentText(this.theme));
   }
 
   // --- Step routing ----------------------------------------------------------
@@ -194,7 +210,7 @@ export class MenuScene extends Phaser.Scene {
         .text(GAME_WIDTH / 2, 160, 'What do you want to practice?', {
           fontFamily: 'system-ui, sans-serif',
           fontSize: '24px',
-          color: '#ffd166',
+          color: accentText(this.theme),
         })
         .setOrigin(0.5),
     );
@@ -210,7 +226,7 @@ export class MenuScene extends Phaser.Scene {
           .text(x, 350, s.title, {
             fontFamily: 'system-ui, sans-serif',
             fontSize: '28px',
-            color: selected ? '#1b1b3a' : '#ffffff',
+            color: textOn(selected ? this.theme.accent : this.theme.panel),
             fontStyle: 'bold',
             align: 'center',
             wordWrap: { width: 280 },
@@ -230,7 +246,7 @@ export class MenuScene extends Phaser.Scene {
         .text(GAME_WIDTH / 2, 440, 'Grade level', {
           fontFamily: 'system-ui, sans-serif',
           fontSize: '22px',
-          color: '#ffd166',
+          color: accentText(this.theme),
         })
         .setOrigin(0.5),
     );
@@ -266,7 +282,7 @@ export class MenuScene extends Phaser.Scene {
         .text(GAME_WIDTH / 2, 150, `Tap to pick one or more  •  ${this.selectedTopics.size} selected`, {
           fontFamily: 'system-ui, sans-serif',
           fontSize: '22px',
-          color: '#ffd166',
+          color: accentText(this.theme),
         })
         .setOrigin(0.5),
     );
@@ -316,14 +332,18 @@ export class MenuScene extends Phaser.Scene {
           .text(x - cardW / 2 + 70, y, t.title, {
             fontFamily: 'system-ui, sans-serif',
             fontSize: '21px',
-            color: '#ffffff',
+            color: textOn(selected ? this.theme.correct : this.theme.panel),
             fontStyle: 'bold',
             wordWrap: { width: cardW - 110 },
           })
           .setOrigin(0, 0.5),
       );
       if (selected) {
-        this.track(this.add.text(x + cardW / 2 - 28, y, '✓', { fontSize: '30px', color: '#ffffff' }).setOrigin(0.5));
+        this.track(
+          this.add
+            .text(x + cardW / 2 - 28, y, '✓', { fontSize: '30px', color: textOn(this.theme.correct) })
+            .setOrigin(0.5),
+        );
       }
 
       // Card tap zone first...
@@ -339,7 +359,7 @@ export class MenuScene extends Phaser.Scene {
 
       // ...then the standards ⓘ on top so it stays tappable.
       const info = this.add
-        .text(x + cardW / 2 - 22, y - cardH / 2 + 16, 'ⓘ', { fontSize: '18px', color: '#cfd6ff' })
+        .text(x + cardW / 2 - 22, y - cardH / 2 + 16, 'ⓘ', { fontSize: '18px', color: mutedText(this.theme) })
         .setOrigin(0.5)
         .setInteractive({ useHandCursor: true });
       info.on('pointerup', (_p: unknown, _lx: unknown, _ly: unknown, ev: Phaser.Types.Input.EventData) => {
@@ -358,7 +378,7 @@ export class MenuScene extends Phaser.Scene {
         .text(GAME_WIDTH / 2, 180, 'How tricky?', {
           fontFamily: 'system-ui, sans-serif',
           fontSize: '26px',
-          color: '#ffd166',
+          color: accentText(this.theme),
         })
         .setOrigin(0.5),
     );
@@ -386,7 +406,7 @@ export class MenuScene extends Phaser.Scene {
         .text(GAME_WIDTH / 2, 380, 'How many questions?', {
           fontFamily: 'system-ui, sans-serif',
           fontSize: '26px',
-          color: '#ffd166',
+          color: accentText(this.theme),
         })
         .setOrigin(0.5),
     );
@@ -418,7 +438,7 @@ export class MenuScene extends Phaser.Scene {
         .text(GAME_WIDTH / 2, 580, `Topics: ${topicNames}`, {
           fontFamily: 'system-ui, sans-serif',
           fontSize: '20px',
-          color: '#cfd6ff',
+          color: mutedText(this.theme),
           align: 'center',
           wordWrap: { width: 800 },
         })
@@ -434,7 +454,7 @@ export class MenuScene extends Phaser.Scene {
         .text(GAME_WIDTH / 2, 160, 'Tap a theme — watch it come alive!', {
           fontFamily: 'system-ui, sans-serif',
           fontSize: '24px',
-          color: '#ffd166',
+          color: accentText(this.theme),
         })
         .setOrigin(0.5),
     );
@@ -488,7 +508,7 @@ export class MenuScene extends Phaser.Scene {
       );
       if (selected) {
         this.track(
-          this.add.text(x + 40, y + 30, '✓ Selected', { fontSize: '22px', color: '#ffffff' }).setOrigin(0.5),
+          this.add.text(x + 40, y + 30, '✓ Selected', { fontSize: '22px', color: primaryText(t) }).setOrigin(0.5),
         );
       }
 
@@ -601,13 +621,13 @@ export class MenuScene extends Phaser.Scene {
         .text(GAME_WIDTH / 2, GAME_HEIGHT / 2, text, {
           fontFamily: 'system-ui, sans-serif',
           fontSize: '22px',
-          color: '#ffffff',
+          color: textOn(this.theme.panel),
           align: 'left',
           lineSpacing: 6,
         })
         .setOrigin(0.5),
       this.add
-        .text(GAME_WIDTH / 2 + 330, GAME_HEIGHT / 2 - 190, '✕', { fontSize: '28px', color: '#ffffff' })
+        .text(GAME_WIDTH / 2 + 330, GAME_HEIGHT / 2 - 190, '✕', { fontSize: '28px', color: textOn(this.theme.panel) })
         .setOrigin(0.5)
         .setInteractive({ useHandCursor: true })
         .on('pointerup', () => overlay.destroy()),
@@ -625,7 +645,7 @@ export class MenuScene extends Phaser.Scene {
         .text(GAME_WIDTH / 2, GAME_HEIGHT / 2 - 200, '⚙️ Settings', {
           fontFamily: 'system-ui, sans-serif',
           fontSize: '32px',
-          color: '#ffffff',
+          color: textOn(this.theme.panel),
           fontStyle: 'bold',
         })
         .setOrigin(0.5),
@@ -644,7 +664,7 @@ export class MenuScene extends Phaser.Scene {
           .text(GAME_WIDTH / 2 - 230, y, t.label, {
             fontFamily: 'system-ui, sans-serif',
             fontSize: '26px',
-            color: '#ffffff',
+            color: textOn(this.theme.panel),
           })
           .setOrigin(0, 0.5),
       );

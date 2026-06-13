@@ -1,6 +1,6 @@
 import Phaser from 'phaser';
 import { SceneKeys, type QuizSceneData, type ResultsSceneData } from './keys';
-import { addGradientBackground, addPanel } from '../ui/scenery';
+import { addGradientBackground, addPanel, primaryText, mutedText } from '../ui/scenery';
 import { getTheme, type Theme } from '../config/themes';
 import { GAME_WIDTH, GAME_HEIGHT } from '../config/gameConfig';
 import { Button } from '../ui/Button';
@@ -111,7 +111,7 @@ export class QuizScene extends Phaser.Scene {
       .text(GAME_WIDTH / 2, 90, `Question ${this.engine.currentIndex + 1} of ${this.engine.total}`, {
         fontFamily: 'system-ui, sans-serif',
         fontSize: '22px',
-        color: '#cfd6ff',
+        color: mutedText(this.theme),
       })
       .setOrigin(0.5)
       .setData('tag', 'qnum');
@@ -152,7 +152,7 @@ export class QuizScene extends Phaser.Scene {
           ? 'Comic Sans MS, Verdana, sans-serif'
           : 'system-ui, sans-serif',
         fontSize: '32px',
-        color: '#ffffff',
+        color: primaryText(this.theme),
         fontStyle: 'bold',
         align: 'center',
         wordWrap: { width: 760 },
