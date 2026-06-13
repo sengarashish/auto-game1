@@ -67,6 +67,13 @@ ProfileScene → MenuScene → QuizScene → ResultsScene
 - **`src/profiles/ProfileStore.ts`** — `localStorage` CRUD for kid profiles, stars, badges.
 - **`src/audio/AudioManager.ts`** — SFX + narration.
 - **`src/scenes/`**, **`src/ui/`** — Phaser scenes and reusable display objects.
+- **`src/scenes/BaseScene.ts`** — responsive base class. The game runs in
+  `Phaser.Scale.RESIZE` (canvas = viewport), so scenes extend `BaseScene` and
+  implement `layout()`, which is called on create AND on every resize/orientation
+  change. Use `this.W/H/cx/cy`, `this.portrait`, and the sizing helpers
+  `this.fs(px)` (font) / `this.px(px)` (pixels) instead of hard-coded
+  coordinates. `setBackground(theme)` draws a resizable gradient; build all
+  positioned UI inside a container you clear at the top of `layout()`.
 - **`src/ui/textures.ts`** — generates particle textures procedurally at boot (no asset files);
   call `ensureParticleTextures(scene)` once per scene that emits particles.
 - **`src/ui/ambiance.ts`** — `Ambiance` (theme-relevant ambient animation) + `enableTapSparkles`

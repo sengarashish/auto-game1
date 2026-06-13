@@ -5,23 +5,19 @@
 import Phaser from 'phaser';
 import type { Theme } from '../config/themes';
 
-/** Draw a full-screen vertical gradient using a texture, return the image. */
-export function addGradientBackground(scene: Phaser.Scene, theme: Theme): Phaser.GameObjects.Image {
-  const { width, height } = scene.scale;
-  const key = `bg-${theme.id}-${width}x${height}`;
-  if (!scene.textures.exists(key)) {
-    const tex = scene.textures.createCanvas(key, width, height);
-    const ctx = tex?.getContext();
-    if (ctx) {
-      const grad = ctx.createLinearGradient(0, 0, 0, height);
-      grad.addColorStop(0, hex(theme.bgTop));
-      grad.addColorStop(1, hex(theme.bgBottom));
-      ctx.fillStyle = grad;
-      ctx.fillRect(0, 0, width, height);
-      tex?.refresh();
-    }
-  }
-  return scene.add.image(width / 2, height / 2, key).setDepth(-10);
+/**
+ * Draw/redraw a full-screen vertical gradient into a Graphics object. Cheap to
+ * redraw, so it works with RESIZE mode — just call again with new w/h.
+ */
+export function drawGradient(
+  g: Phaser.GameObjects.Graphics,
+  w: number,
+  h: number,
+  theme: Theme,
+): void {
+  g.clear();
+  g.fillGradientStyle(theme.bgTop, theme.bgTop, theme.bgBottom, theme.bgBottom, 1);
+  g.fillRect(0, 0, w, h);
 }
 
 /** A rounded rectangle panel/card. */

@@ -1,8 +1,8 @@
 import Phaser from 'phaser';
+import { BaseScene } from './BaseScene';
 import { SceneKeys } from './keys';
-import { addGradientBackground, addPanel } from '../ui/scenery';
+import { addPanel } from '../ui/scenery';
 import { getTheme } from '../config/themes';
-import { GAME_WIDTH, GAME_HEIGHT } from '../config/gameConfig';
 import { Button } from '../ui/Button';
 import { Audio } from '../audio/AudioManager';
 import { GRADE_BANDS, type GradeBand } from '../quiz/types';
@@ -15,9 +15,10 @@ import {
   type Profile,
 } from '../profiles/ProfileStore';
 
-/** Pick or create a kid profile. */
-export class ProfileScene extends Phaser.Scene {
+/** Pick or create a kid profile. Responsive grid. */
+export class ProfileScene extends BaseScene {
   private theme = getTheme('space');
+  private ui!: Phaser.GameObjects.Container;
 
   constructor() {
     super(SceneKeys.Profile);
@@ -25,74 +26,90 @@ export class ProfileScene extends Phaser.Scene {
 
   create(): void {
     Audio.unlock();
-    addGradientBackground(this, this.theme);
-    this.add
-      .text(GAME_WIDTH / 2, 70, "Who's playing today?", {
-        fontFamily: 'system-ui, sans-serif',
-        fontSize: '44px',
-        color: '#ffffff',
-        fontStyle: 'bold',
-      })
-      .setOrigin(0.5);
-
-    this.renderProfiles();
+    this.setBackground(this.theme);
+    this.ui = this.add.container();
+    this.enableResponsive();
+    this.layout();
   }
 
-  private renderProfiles(): void {
+  layout(): void {
+    this.ui.removeAll(true);
+
+    this.add2(
+      this.add
+        .text(this.cx, this.px(60), "Who's playing today?", {
+          fontFamily: 'system-ui, sans-serif',
+          fontSize: this.fs(44),
+          color: '#ffffff',
+          fontStyle: 'bold',
+        })
+        .setOrigin(0.5),
+    );
+
     const profiles = listProfiles();
-    const startY = 200;
-    const perRow = 4;
-    const spacingX = 220;
-    const spacingY = 230;
+    const cols = this.portrait ? 2 : Math.min(4, Math.max(1, Math.floor(this.W / 220)));
+    const cardW = Math.min(this.px(180), (this.W - this.px(40)) / cols - this.px(16));
+    const cardH = cardW * 1.05;
+    const gapX = this.px(28);
+    const gapY = this.px(40);
+    const startY = this.px(150);
 
     profiles.forEach((p, i) => {
-      const col = i % perRow;
-      const row = Math.floor(i / perRow);
-      const x = GAME_WIDTH / 2 + (col - (perRow - 1) / 2) * spacingX;
-      const y = startY + row * spacingY;
-      this.profileCard(p, x, y);
+      const col = i % cols;
+      const row = Math.floor(i / cols);
+      const totalW = cols * cardW + (cols - 1) * gapX;
+      const x = this.cx - totalW / 2 + cardW / 2 + col * (cardW + gapX);
+      const y = startY + cardH / 2 + row * (cardH + gapY);
+      this.profileCard(p, x, y, cardW, cardH);
     });
 
-    new Button(this, GAME_WIDTH / 2, GAME_HEIGHT - 90, 'New Player', {
-      icon: '➕',
-      fill: this.theme.accent,
-      textColor: 0x1b1b3a,
-      width: 320,
-      onClick: () => this.showCreatePanel(),
-    });
+    this.add2(
+      new Button(this, this.cx, this.H - this.px(70), 'New Player', {
+        icon: '➕',
+        fill: this.theme.accent,
+        textColor: 0x1b1b3a,
+        width: this.px(320),
+        height: this.px(76),
+        fontSize: this.px(26),
+        onClick: () => this.showCreatePanel(),
+      }),
+    );
   }
 
-  private profileCard(p: Profile, x: number, y: number): void {
-    const card = addPanel(this, x, y, 180, 190, this.theme.panel, 1, 20);
+  private profileCard(p: Profile, x: number, y: number, w: number, h: number): void {
+    const card = addPanel(this, x, y, w, h, this.theme.panel, 1, this.px(20));
     card.setInteractive(
-      new Phaser.Geom.Rectangle(x - 90, y - 95, 180, 190),
+      new Phaser.Geom.Rectangle(x - w / 2, y - h / 2, w, h),
       Phaser.Geom.Rectangle.Contains,
     );
-    this.add.text(x, y - 45, p.avatar, { fontSize: '70px' }).setOrigin(0.5);
-    this.add
-      .text(x, y + 30, p.name, {
-        fontFamily: 'system-ui, sans-serif',
-        fontSize: '26px',
-        color: '#ffffff',
-        fontStyle: 'bold',
-      })
-      .setOrigin(0.5);
-    this.add
-      .text(x, y + 62, `⭐ ${p.totalStars}`, { fontSize: '22px', color: '#ffd166' })
-      .setOrigin(0.5);
+    this.add2(card);
+    this.add2(this.add.text(x, y - h * 0.22, p.avatar, { fontSize: this.fs(70) }).setOrigin(0.5));
+    this.add2(
+      this.add
+        .text(x, y + h * 0.15, p.name, {
+          fontFamily: 'system-ui, sans-serif',
+          fontSize: this.fs(26),
+          color: '#ffffff',
+          fontStyle: 'bold',
+        })
+        .setOrigin(0.5),
+    );
+    this.add2(
+      this.add.text(x, y + h * 0.33, `⭐ ${p.totalStars}`, { fontSize: this.fs(22), color: '#ffd166' }).setOrigin(0.5),
+    );
 
-    // Small delete affordance.
     const del = this.add
-      .text(x + 70, y - 80, '✕', { fontSize: '22px', color: '#ffffff' })
+      .text(x + w / 2 - this.px(20), y - h / 2 + this.px(16), '✕', { fontSize: this.fs(22), color: '#ffffff' })
       .setOrigin(0.5)
       .setInteractive({ useHandCursor: true });
     del.on('pointerup', (_p: unknown, _lx: unknown, _ly: unknown, event: Phaser.Types.Input.EventData) => {
       event.stopPropagation();
       if (confirm(`Delete ${p.name}'s profile? This removes their stars and badges.`)) {
         deleteProfile(p.id);
-        this.scene.restart();
+        this.layout();
       }
     });
+    this.add2(del);
 
     card.on('pointerup', () => {
       Audio.play('click');
@@ -101,21 +118,27 @@ export class ProfileScene extends Phaser.Scene {
     });
   }
 
+  private add2<T extends Phaser.GameObjects.GameObject>(o: T): T {
+    this.ui.add(o);
+    return o;
+  }
+
   private showCreatePanel(): void {
     const name = (window.prompt('Enter the player’s first name:', '') ?? '').trim();
     if (!name) return;
 
-    // Overlay to choose an avatar and grade band.
     const overlay = this.add.container(0, 0).setDepth(2000);
-    const dim = this.add.rectangle(GAME_WIDTH / 2, GAME_HEIGHT / 2, GAME_WIDTH, GAME_HEIGHT, 0x000000, 0.55);
-    const panel = addPanel(this, GAME_WIDTH / 2, GAME_HEIGHT / 2, 760, 540, this.theme.panel, 1, 28);
+    const pw = Math.min(this.px(760), this.W - this.px(30));
+    const ph = Math.min(this.px(540), this.H - this.px(30));
+    const dim = this.add.rectangle(this.cx, this.cy, this.W, this.H, 0x000000, 0.55);
+    const panel = addPanel(this, this.cx, this.cy, pw, ph, this.theme.panel, 1, this.px(28));
     overlay.add([dim, panel]);
 
     overlay.add(
       this.add
-        .text(GAME_WIDTH / 2, GAME_HEIGHT / 2 - 230, `Hi ${name}! Pick your buddy:`, {
+        .text(this.cx, this.cy - ph / 2 + this.px(40), `Hi ${name}! Pick your buddy:`, {
           fontFamily: 'system-ui, sans-serif',
-          fontSize: '30px',
+          fontSize: this.fs(30),
           color: '#ffffff',
           fontStyle: 'bold',
         })
@@ -123,19 +146,23 @@ export class ProfileScene extends Phaser.Scene {
     );
 
     let chosenAvatar = AVATARS[0];
+    const avCols = 6;
+    const avSize = this.px(54);
+    const avGap = Math.min(this.px(56), (pw - this.px(60)) / avCols);
+    const avTop = this.cy - ph / 2 + this.px(110);
     const avatarTexts: Phaser.GameObjects.Text[] = [];
     AVATARS.forEach((a, i) => {
-      const col = i % 6;
-      const rowI = Math.floor(i / 6);
-      const ax = GAME_WIDTH / 2 + (col - 2.5) * 110;
-      const ay = GAME_HEIGHT / 2 - 150 + rowI * 100;
+      const col = i % avCols;
+      const rowI = Math.floor(i / avCols);
+      const ax = this.cx + (col - (avCols - 1) / 2) * avGap;
+      const ay = avTop + rowI * this.px(86);
       const t = this.add
-        .text(ax, ay, a, { fontSize: '54px' })
+        .text(ax, ay, a, { fontSize: `${avSize}px` })
         .setOrigin(0.5)
         .setInteractive({ useHandCursor: true });
       t.on('pointerup', () => {
         chosenAvatar = a;
-        avatarTexts.forEach((o) => o.setAlpha(0.45));
+        avatarTexts.forEach((o) => o.setAlpha(0.45).setScale(1));
         t.setAlpha(1).setScale(1.25);
         Audio.play('click');
       });
@@ -147,9 +174,9 @@ export class ProfileScene extends Phaser.Scene {
 
     overlay.add(
       this.add
-        .text(GAME_WIDTH / 2, GAME_HEIGHT / 2 + 40, 'Pick your grade:', {
+        .text(this.cx, this.cy + this.px(40), 'Pick your grade:', {
           fontFamily: 'system-ui, sans-serif',
-          fontSize: '28px',
+          fontSize: this.fs(28),
           color: '#ffffff',
           fontStyle: 'bold',
         })
@@ -158,19 +185,18 @@ export class ProfileScene extends Phaser.Scene {
 
     let chosenBand: GradeBand = 'pk-k';
     const bandButtons: Button[] = [];
+    const bandGap = Math.min(this.px(175), (pw - this.px(40)) / GRADE_BANDS.length);
     GRADE_BANDS.forEach((b, i) => {
-      const bx = GAME_WIDTH / 2 + (i - (GRADE_BANDS.length - 1) / 2) * 175;
-      const btn = new Button(this, bx, GAME_HEIGHT / 2 + 100, b.label, {
+      const bx = this.cx + (i - (GRADE_BANDS.length - 1) / 2) * bandGap;
+      const btn = new Button(this, bx, this.cy + this.px(100), b.label, {
         fill: i === 0 ? this.theme.accent : 0x44507a,
         textColor: i === 0 ? 0x1b1b3a : 0xffffff,
-        width: 160,
-        height: 64,
-        fontSize: 22,
+        width: Math.min(this.px(160), bandGap - this.px(8)),
+        height: this.px(64),
+        fontSize: this.px(20),
         onClick: () => {
           chosenBand = b.id;
-          bandButtons.forEach((bb, j) => {
-            bb.setFill(j === i ? this.theme.accent : 0x44507a);
-          });
+          bandButtons.forEach((bb, j) => bb.setFill(j === i ? this.theme.accent : 0x44507a));
         },
       });
       bandButtons.push(btn);
@@ -178,10 +204,11 @@ export class ProfileScene extends Phaser.Scene {
     });
 
     overlay.add(
-      new Button(this, GAME_WIDTH / 2, GAME_HEIGHT / 2 + 210, "Let's Go!", {
+      new Button(this, this.cx, this.cy + ph / 2 - this.px(50), "Let's Go!", {
         icon: '🎮',
         fill: this.theme.correct,
-        width: 320,
+        width: this.px(320),
+        height: this.px(72),
         onClick: () => {
           createProfile(name, chosenAvatar, chosenBand);
           this.scene.start(SceneKeys.Menu);

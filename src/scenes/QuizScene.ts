@@ -1,8 +1,8 @@
 import Phaser from 'phaser';
+import { BaseScene } from './BaseScene';
 import { SceneKeys, type QuizSceneData, type ResultsSceneData } from './keys';
-import { addGradientBackground, addPanel, primaryText, mutedText } from '../ui/scenery';
+import { addPanel, primaryText, mutedText } from '../ui/scenery';
 import { getTheme, type Theme } from '../config/themes';
-import { GAME_WIDTH, GAME_HEIGHT } from '../config/gameConfig';
 import { Button } from '../ui/Button';
 import { Audio } from '../audio/AudioManager';
 import { getSettings } from '../config/settings';
@@ -14,19 +14,22 @@ import type { Choice, Question } from '../quiz/types';
 import { getActiveProfile, recordResult } from '../profiles/ProfileStore';
 
 /** The gameplay scene: shows a question, grades the answer, gives feedback. */
-export class QuizScene extends Phaser.Scene {
+export class QuizScene extends BaseScene {
   private quizData!: QuizSceneData;
   private theme!: Theme;
   private engine!: QuizEngine;
   private attempts = 0;
   private locked = false;
+  private streak = 0;
 
+  private hud!: Phaser.GameObjects.Container;
+  private board!: Phaser.GameObjects.Container;
   private mascot!: Phaser.GameObjects.Text;
   private progressFill!: Phaser.GameObjects.Rectangle;
+  private progressBg!: Phaser.GameObjects.Rectangle;
   private starText!: Phaser.GameObjects.Text;
   private streakText!: Phaser.GameObjects.Text;
   private choiceButtons: Button[] = [];
-  private streak = 0;
 
   constructor() {
     super(SceneKeys.Quiz);
@@ -38,42 +41,55 @@ export class QuizScene extends Phaser.Scene {
     this.engine = new QuizEngine(data.config);
     this.attempts = 0;
     this.locked = false;
+    this.streak = 0;
   }
 
   create(): void {
     Audio.unlock();
     ensureParticleTextures(this);
-    addGradientBackground(this, this.theme);
+    this.setBackground(this.theme);
     new Ambiance(this, this.theme).start();
     enableTapSparkles(this, this.theme);
 
-    // Top bar: quit, progress, stars-so-far.
-    new Button(this, 70, 44, 'Quit', {
-      icon: '🚪',
-      fill: 0x44507a,
-      width: 120,
-      height: 56,
-      fontSize: 20,
-      onClick: () => this.scene.start(SceneKeys.Menu),
-    });
+    this.hud = this.add.container();
+    this.board = this.add.container();
+    this.enableResponsive();
+    this.layout();
+    this.showQuestion();
+  }
 
-    const barBg = this.add.rectangle(GAME_WIDTH / 2, 44, 460, 26, 0x000000, 0.3).setOrigin(0.5);
+  /** Rebuild the persistent HUD (top bar + mascot) for the current size. */
+  layout(): void {
+    this.hud.removeAll(true);
+
+    this.hud.add(
+      new Button(this, this.px(60), this.px(36), 'Quit', {
+        icon: '🚪',
+        fill: 0x44507a,
+        width: this.px(110),
+        height: this.px(52),
+        fontSize: this.px(18),
+        onClick: () => this.scene.start(SceneKeys.Menu),
+      }),
+    );
+
+    const barW = Math.min(this.px(460), this.W - this.px(280));
+    this.progressBg = this.add.rectangle(this.cx, this.px(36), barW, this.px(24), 0x000000, 0.3).setOrigin(0.5);
     this.progressFill = this.add
-      .rectangle(barBg.x - 228, 44, 4, 18, this.theme.accent)
+      .rectangle(this.cx - barW / 2, this.px(36), this.px(4), this.px(18), this.theme.accent)
       .setOrigin(0, 0.5);
+    this.hud.add([this.progressBg, this.progressFill]);
 
     this.starText = this.add
-      .text(GAME_WIDTH - 70, 44, '⭐ 0', { fontSize: '26px', color: '#ffd166' })
+      .text(this.W - this.px(60), this.px(28), '⭐ 0', { fontSize: this.fs(24), color: '#ffd166' })
       .setOrigin(0.5);
-
-    // Streak meter (hidden until a streak builds).
     this.streakText = this.add
-      .text(GAME_WIDTH - 70, 78, '', { fontSize: '22px', color: '#ff7b00', fontStyle: 'bold' })
+      .text(this.W - this.px(60), this.px(58), '', { fontSize: this.fs(20), color: '#ff7b00', fontStyle: 'bold' })
       .setOrigin(0.5);
+    this.hud.add([this.starText, this.streakText]);
 
-    // Mascot in the corner — tap it for a cheer + sparkles (interactive fun).
     this.mascot = this.add
-      .text(90, GAME_HEIGHT - 110, this.theme.mascot, { fontSize: '90px' })
+      .text(this.px(70), this.H - this.px(80), this.theme.mascot, { fontSize: this.fs(80) })
       .setOrigin(0.5)
       .setInteractive({ useHandCursor: true });
     this.mascot.on('pointerup', () => {
@@ -81,7 +97,6 @@ export class QuizScene extends Phaser.Scene {
       this.cheer(true);
       this.tweens.add({ targets: this.mascot, scale: 1.2, angle: 8, duration: 120, yoyo: true });
     });
-    // Idle breathing.
     if (!getSettings().reducedMotion) {
       this.tweens.add({
         targets: this.mascot,
@@ -92,113 +107,128 @@ export class QuizScene extends Phaser.Scene {
         ease: 'Sine.inOut',
       });
     }
+    this.hud.add(this.mascot);
 
-    this.showQuestion();
+    // Rebuild the question board for the new size (keep current question).
+    if (this.engine) this.renderBoard();
   }
 
   private showQuestion(): void {
     this.attempts = 0;
     this.locked = false;
-    this.choiceButtons.forEach((b) => b.destroy());
-    this.choiceButtons = [];
+    this.renderBoard();
+    Audio.speak(this.engine.currentQuestion.speak ?? this.engine.currentQuestion.prompt);
+  }
 
+  /** Draw the prompt + choices for the current question at the current size. */
+  private renderBoard(): void {
+    this.board.removeAll(true);
+    this.choiceButtons = [];
     const q = this.engine.currentQuestion;
     this.updateProgress();
 
-    // Question number.
-    this.cleanupTag('qnum');
-    this.add
-      .text(GAME_WIDTH / 2, 90, `Question ${this.engine.currentIndex + 1} of ${this.engine.total}`, {
-        fontFamily: 'system-ui, sans-serif',
-        fontSize: '22px',
-        color: mutedText(this.theme),
-      })
-      .setOrigin(0.5)
-      .setData('tag', 'qnum');
+    this.board.add(
+      this.add
+        .text(this.cx, this.px(82), `Question ${this.engine.currentIndex + 1} of ${this.engine.total}`, {
+          fontFamily: 'system-ui, sans-serif',
+          fontSize: this.fs(20),
+          color: mutedText(this.theme),
+        })
+        .setOrigin(0.5),
+    );
 
     this.renderPrompt(q);
     this.renderChoices(q);
-
-    // Narrate the prompt automatically (for pre-readers / read-to-me).
-    Audio.speak(q.speak ?? q.prompt);
   }
 
   private renderPrompt(q: Question): void {
-    this.cleanupTag('prompt');
-    const panel = addPanel(this, GAME_WIDTH / 2, 230, 820, 200, this.theme.panel, 1, 24);
-    panel.setData('tag', 'prompt');
+    const panelW = Math.min(this.px(820), this.W - this.px(40));
+    const panelH = this.portrait ? this.px(180) : this.px(190);
+    const panelY = this.px(120) + panelH / 2;
 
+    this.board.add(addPanel(this, this.cx, panelY, panelW, panelH, this.theme.panel, 1, this.px(24)));
+
+    let textY = panelY;
     if (q.promptImage) {
-      this.add
-        .text(GAME_WIDTH / 2, 190, q.promptImage, {
-          fontSize: q.promptImage.length > 6 ? '44px' : '72px',
-          align: 'center',
-          wordWrap: { width: 760 },
-        })
-        .setOrigin(0.5)
-        .setData('tag', 'prompt');
+      this.board.add(
+        this.add
+          .text(this.cx, panelY - panelH * 0.22, q.promptImage, {
+            fontSize: q.promptImage.length > 6 ? this.fs(44) : this.fs(72),
+            align: 'center',
+            wordWrap: { width: panelW - this.px(60) },
+          })
+          .setOrigin(0.5),
+      );
+      textY = panelY + panelH * 0.22;
     }
 
     const speaker = this.add
-      .text(GAME_WIDTH / 2 + 360, 160, '🔊', { fontSize: '34px' })
+      .text(this.cx + panelW / 2 - this.px(34), panelY - panelH / 2 + this.px(28), '🔊', { fontSize: this.fs(32) })
       .setOrigin(0.5)
-      .setInteractive({ useHandCursor: true })
-      .setData('tag', 'prompt');
+      .setInteractive({ useHandCursor: true });
     speaker.on('pointerup', () => Audio.speak(q.speak ?? q.prompt, { force: true }));
+    this.board.add(speaker);
 
-    this.add
-      .text(GAME_WIDTH / 2, q.promptImage ? 270 : 230, q.prompt, {
-        fontFamily: getSettings().dyslexiaFont
-          ? 'Comic Sans MS, Verdana, sans-serif'
-          : 'system-ui, sans-serif',
-        fontSize: '32px',
-        color: primaryText(this.theme),
-        fontStyle: 'bold',
-        align: 'center',
-        wordWrap: { width: 760 },
-      })
-      .setOrigin(0.5)
-      .setData('tag', 'prompt');
+    this.board.add(
+      this.add
+        .text(this.cx, textY, q.prompt, {
+          fontFamily: getSettings().dyslexiaFont ? 'Comic Sans MS, Verdana, sans-serif' : 'system-ui, sans-serif',
+          fontSize: this.fs(30),
+          color: primaryText(this.theme),
+          fontStyle: 'bold',
+          align: 'center',
+          wordWrap: { width: panelW - this.px(60) },
+        })
+        .setOrigin(0.5),
+    );
   }
 
   private renderChoices(q: Question): void {
     const choices = q.choices ?? [];
     const n = choices.length;
-    const cols = n <= 2 ? n : 2;
-    const startY = 430;
-    const spacingX = 420;
-    const spacingY = 110;
+    // One column on narrow/portrait screens, two when there's room.
+    const cols = this.portrait || this.W < 720 ? 1 : 2;
+    const rows = Math.ceil(n / cols);
+
+    const areaTop = this.px(120) + (this.portrait ? this.px(180) : this.px(190)) + this.px(30);
+    const areaBottom = this.H - this.px(120);
+    const areaH = areaBottom - areaTop;
+    const gapX = this.px(24);
+    const gapY = this.px(14);
+
+    const btnW = Math.min(this.px(420), (this.W - this.px(40) - (cols - 1) * gapX) / cols);
+    const btnH = Math.max(this.px(58), Math.min(this.px(92), (areaH - (rows - 1) * gapY) / rows));
 
     const reduced = getSettings().reducedMotion;
     choices.forEach((choice, i) => {
       const col = i % cols;
       const row = Math.floor(i / cols);
-      const x = GAME_WIDTH / 2 + (col - (cols - 1) / 2) * spacingX;
-      const y = startY + row * spacingY;
+      const totalW = cols * btnW + (cols - 1) * gapX;
+      const x = this.cx - totalW / 2 + btnW / 2 + col * (btnW + gapX);
+      const y = areaTop + btnH / 2 + row * (btnH + gapY);
       const label = choice.image ? `${choice.image}  ${choice.label}` : choice.label;
       const btn = new Button(this, x, y, label, {
         fill: 0x2f3a63,
-        width: 380,
-        height: 90,
-        fontSize: 30,
+        width: btnW,
+        height: btnH,
+        fontSize: this.px(28),
         onClick: () => this.onAnswer(choice, btn),
       });
+      this.board.add(btn);
       this.choiceButtons.push(btn);
 
       if (!reduced) {
-        // Bouncy staggered entrance...
         btn.setScale(0);
         this.tweens.add({
           targets: btn,
           scale: 1,
-          duration: 320,
-          delay: 120 * i,
+          duration: 300,
+          delay: 90 * i,
           ease: 'Back.out',
           onComplete: () => {
-            // ...then a gentle, lively idle bob so options feel alive.
             this.tweens.add({
               targets: btn,
-              y: y - 6,
+              y: y - this.px(5),
               duration: 1100 + i * 120,
               yoyo: true,
               repeat: -1,
@@ -221,24 +251,18 @@ export class QuizScene extends Phaser.Scene {
       this.tweens.killTweensOf(btn);
       btn.setFill(this.theme.correct);
       this.engine.submit(choice.id, this.attempts);
-
-      // Game-y juice: the chosen answer pops, themed particles erupt, mascot
-      // jumps, and a random celebration variant plays so it never feels samey.
       Audio.play('correct');
-      if (!getSettings().reducedMotion) {
-        this.tweens.add({ targets: btn, scale: 1.18, duration: 140, yoyo: true });
-      }
+      if (!getSettings().reducedMotion) this.tweens.add({ targets: btn, scale: 1.15, duration: 140, yoyo: true });
       randomCelebration(this, btn.x, btn.y, this.theme);
-      this.showCheck(btn.x + 150, btn.y, true);
+      this.showCheck(btn.x + btn.width / 2 - this.px(10), btn.y - btn.height / 2 + this.px(10), true);
       this.cheer(true);
       this.bumpStreak();
       this.dimOthers(btn);
       this.time.delayedCall(getSettings().reducedMotion ? 450 : 1200, () => this.next());
     } else {
-      // Gentle: mark wrong, allow another try. After the 2nd miss, reveal.
       this.tweens.killTweensOf(btn);
       btn.setFill(this.theme.wrong);
-      this.showCheck(btn.x + 150, btn.y, false);
+      this.showCheck(btn.x + btn.width / 2 - this.px(10), btn.y - btn.height / 2 + this.px(10), false);
       Audio.play('wrong');
       shake(this, btn);
       wrongPuff(this, btn.x, btn.y);
@@ -270,7 +294,6 @@ export class QuizScene extends Phaser.Scene {
     this.streakText.setText('');
   }
 
-  /** Fade the non-chosen options so the correct pick stands out. */
   private dimOthers(chosen: Button): void {
     this.choiceButtons.forEach((b) => {
       if (b !== chosen) {
@@ -289,14 +312,11 @@ export class QuizScene extends Phaser.Scene {
         randomCelebration(this, btn.x, btn.y, this.theme);
       }
     });
-    if (q.explanation) {
-      Audio.speak(q.explanation);
-    }
+    if (q.explanation) Audio.speak(q.explanation);
   }
 
   private showCheck(x: number, y: number, ok: boolean): void {
-    // Icon paired with color so feedback never relies on color alone (a11y).
-    const t = this.add.text(x, y, ok ? '✅' : '❌', { fontSize: '40px' }).setOrigin(0.5).setDepth(900);
+    const t = this.add.text(x, y, ok ? '✅' : '❌', { fontSize: this.fs(40) }).setOrigin(0.5).setDepth(900);
     if (!getSettings().reducedMotion) {
       t.setScale(0);
       this.tweens.add({ targets: t, scale: 1, duration: 250, ease: 'Back.out' });
@@ -311,27 +331,25 @@ export class QuizScene extends Phaser.Scene {
     const phrase = phrases[Math.floor(Math.random() * phrases.length)];
     this.cleanupTag('bubble');
     const bubble = this.add
-      .text(200, GAME_HEIGHT - 190, phrase, {
+      .text(this.px(150), this.H - this.px(150), phrase, {
         fontFamily: 'system-ui, sans-serif',
-        fontSize: '24px',
+        fontSize: this.fs(22),
         color: '#1b1b3a',
         backgroundColor: '#ffffff',
         padding: { x: 14, y: 8 },
       })
       .setOrigin(0.5)
-      .setData('tag', 'bubble');
+      .setData('tag', 'bubble')
+      .setDepth(800);
     if (!getSettings().reducedMotion) {
-      this.tweens.add({ targets: this.mascot, y: this.mascot.y - 20, duration: 150, yoyo: true });
+      this.tweens.add({ targets: this.mascot, y: this.mascot.y - this.px(20), duration: 150, yoyo: true });
     }
     this.time.delayedCall(1200, () => bubble.destroy());
   }
 
   private next(): void {
-    if (this.engine.advance()) {
-      this.showQuestion();
-    } else {
-      this.finish();
-    }
+    if (this.engine.advance()) this.showQuestion();
+    else this.finish();
   }
 
   private finish(): void {
@@ -346,16 +364,13 @@ export class QuizScene extends Phaser.Scene {
 
   private updateProgress(): void {
     const frac = this.engine.total === 0 ? 0 : this.engine.currentIndex / this.engine.total;
-    this.progressFill.setSize(4 + 452 * frac, 18);
-    const correctSoFar = this.engine
-      .result()
-      .records.filter((r) => r.correct).length;
+    const barW = this.progressBg.width;
+    this.progressFill.setSize(this.px(4) + (barW - this.px(8)) * frac, this.px(18));
+    const correctSoFar = this.engine.result().records.filter((r) => r.correct).length;
     this.starText.setText(`⭐ ${correctSoFar}`);
   }
 
   private cleanupTag(tag: string): void {
-    this.children.list
-      .filter((c) => c.getData && c.getData('tag') === tag)
-      .forEach((c) => c.destroy());
+    this.children.list.filter((c) => c.getData && c.getData('tag') === tag).forEach((c) => c.destroy());
   }
 }

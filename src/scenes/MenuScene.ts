@@ -1,15 +1,8 @@
 import Phaser from 'phaser';
+import { BaseScene } from './BaseScene';
 import { SceneKeys, type QuizSceneData } from './keys';
-import {
-  addGradientBackground,
-  addPanel,
-  primaryText,
-  accentText,
-  mutedText,
-  textOn,
-} from '../ui/scenery';
+import { addPanel, primaryText, accentText, mutedText, textOn } from '../ui/scenery';
 import { getTheme, THEMES } from '../config/themes';
-import { GAME_WIDTH, GAME_HEIGHT } from '../config/gameConfig';
 import { Button } from '../ui/Button';
 import { Audio } from '../audio/AudioManager';
 import { getSettings, updateSettings } from '../config/settings';
@@ -24,27 +17,15 @@ const DIFFICULTIES: { id: Difficulty; label: string; icon: string }[] = [
   { id: 2, label: 'Medium', icon: '🟡' },
   { id: 3, label: 'Hard', icon: '🔴' },
 ];
-
 const STEP_TITLES = ['Pick a Subject', 'Choose Topics', 'Set It Up', 'Pick a Theme'];
 
-/**
- * Build-your-quiz wizard. One decision per step keeps the layout clean and
- * readable (no squeezing, no overlap), with a persistent footer for Back/Next.
- */
-export class MenuScene extends Phaser.Scene {
+/** Build-your-quiz wizard. Fully responsive: everything reflows in layout(). */
+export class MenuScene extends BaseScene {
   private profile!: Profile;
   private theme = getTheme('space');
   private ambiance?: Ambiance;
-  private bg?: Phaser.GameObjects.Image;
-  private content!: Phaser.GameObjects.Container;
-  private headerTitle!: Phaser.GameObjects.Text;
-  private profileNameText!: Phaser.GameObjects.Text;
-  private profileStatsText!: Phaser.GameObjects.Text;
-  private stepDots: Phaser.GameObjects.Arc[] = [];
-  private backBtn!: Button;
-  private nextBtn!: Button;
+  private ui!: Phaser.GameObjects.Container;
 
-  // Wizard state
   private step = 0;
   private subjectId: SubjectId = 'math';
   private gradeBand: GradeBand = 'pk-k';
@@ -67,104 +48,28 @@ export class MenuScene extends Phaser.Scene {
     this.gradeBand = profile.gradeBand;
     this.theme = getTheme(profile.theme);
 
-    this.buildStatic();
-    this.applyTheme();
-    this.renderStep();
-  }
-
-  // --- Persistent chrome (built once) ---------------------------------------
-
-  private buildStatic(): void {
-    this.content = this.add.container(0, 0);
-
-    // Tap-to-sparkle interactivity (reads current theme each tap).
+    this.setBackground(this.theme);
+    this.ambiance = new Ambiance(this, this.theme).start();
     this.input.on('pointerdown', (p: Phaser.Input.Pointer) => this.tapSparkle(p));
-
-    // Header.
-    this.headerTitle = this.add
-      .text(GAME_WIDTH / 2, 56, '', {
-        fontFamily: 'system-ui, sans-serif',
-        fontSize: '40px',
-        color: '#ffffff',
-        fontStyle: 'bold',
-      })
-      .setOrigin(0.5)
-      .setDepth(5);
-
-    // Step dots.
-    STEP_TITLES.forEach((_t, i) => {
-      const dot = this.add
-        .circle(GAME_WIDTH / 2 + (i - (STEP_TITLES.length - 1) / 2) * 34, 100, 7, 0xffffff, 0.4)
-        .setDepth(5);
-      this.stepDots.push(dot);
-    });
-
-    // Profile chip + controls (top-left / top-right).
-    this.add.text(30, 28, this.profile.avatar, { fontSize: '40px' }).setDepth(5);
-    this.profileNameText = this.add
-      .text(80, 30, this.profile.name, {
-        fontFamily: 'system-ui, sans-serif',
-        fontSize: '24px',
-        color: '#ffffff',
-        fontStyle: 'bold',
-      })
-      .setDepth(5);
-    this.profileStatsText = this.add
-      .text(80, 60, `⭐ ${this.profile.totalStars}  🏅 ${this.profile.badges.length}`, {
-        fontSize: '18px',
-        color: '#ffd166',
-      })
-      .setDepth(5);
-
-    this.iconButton(GAME_WIDTH - 50, 44, '⚙️', () => this.showSettings());
-    this.iconButton(GAME_WIDTH - 110, 44, '🔄', () => this.scene.start(SceneKeys.Profile));
-
-    // Footer buttons (persistent, updated per step).
-    this.backBtn = new Button(this, 150, GAME_HEIGHT - 56, 'Back', {
-      icon: '◀',
-      fill: 0x44507a,
-      width: 200,
-      height: 76,
-      fontSize: 26,
-      onClick: () => this.goBack(),
-    });
-    this.backBtn.setDepth(5);
-
-    this.nextBtn = new Button(this, GAME_WIDTH - 170, GAME_HEIGHT - 56, 'Next', {
-      icon: '▶',
-      fill: this.theme.accent,
-      textColor: 0x1b1b3a,
-      width: 240,
-      height: 76,
-      fontSize: 28,
-      onClick: () => this.goNext(),
-    });
-    this.nextBtn.setDepth(5);
+    this.ui = this.add.container();
+    this.enableResponsive();
+    this.layout();
   }
 
   private applyTheme(): void {
-    this.bg?.destroy();
-    this.bg = addGradientBackground(this, this.theme);
+    this.setBackground(this.theme);
     this.ambiance?.stop();
     this.ambiance = new Ambiance(this, this.theme).start();
-    this.nextBtn.setFill(this.theme.accent);
-
-    // Keep persistent chrome readable when the theme changes mid-flow.
-    this.headerTitle.setColor(primaryText(this.theme));
-    this.profileNameText.setColor(primaryText(this.theme));
-    this.profileStatsText.setColor(accentText(this.theme));
+    this.layout();
   }
 
-  // --- Step routing ----------------------------------------------------------
+  // --- Layout ---------------------------------------------------------------
 
-  private renderStep(): void {
-    this.content.removeAll(true);
-    this.headerTitle.setText(STEP_TITLES[this.step]);
-    this.stepDots.forEach((d, i) =>
-      d.setFillStyle(i === this.step ? this.theme.accent : 0xffffff, i === this.step ? 1 : 0.4),
-    );
-    this.backBtn.setVisible(this.step > 0);
-    this.nextBtn.setLabel(this.step === STEP_TITLES.length - 1 ? 'Start!' : 'Next');
+  layout(): void {
+    if (!this.ui) return;
+    this.ui.removeAll(true);
+    this.header();
+    this.footer();
 
     switch (this.step) {
       case 0:
@@ -182,6 +87,89 @@ export class MenuScene extends Phaser.Scene {
     }
   }
 
+  private get contentTop(): number {
+    return this.px(132);
+  }
+  private get contentBottom(): number {
+    return this.H - this.px(108);
+  }
+
+  private add2<T extends Phaser.GameObjects.GameObject>(o: T): T {
+    this.ui.add(o);
+    return o;
+  }
+
+  private header(): void {
+    this.add2(this.add.text(this.px(16), this.px(14), this.profile.avatar, { fontSize: this.fs(40) }));
+    this.add2(
+      this.add.text(this.px(64), this.px(16), this.profile.name, {
+        fontFamily: 'system-ui, sans-serif',
+        fontSize: this.fs(22),
+        color: primaryText(this.theme),
+        fontStyle: 'bold',
+      }),
+    );
+    this.add2(
+      this.add.text(this.px(64), this.px(44), `⭐ ${this.profile.totalStars}  🏅 ${this.profile.badges.length}`, {
+        fontSize: this.fs(16),
+        color: accentText(this.theme),
+      }),
+    );
+
+    this.iconBtn(this.W - this.px(36), this.px(34), '⚙️', () => this.showSettings());
+    this.iconBtn(this.W - this.px(82), this.px(34), '🔄', () => this.scene.start(SceneKeys.Profile));
+
+    this.add2(
+      this.add
+        .text(this.cx, this.px(78), STEP_TITLES[this.step], {
+          fontFamily: 'system-ui, sans-serif',
+          fontSize: this.fs(36),
+          color: primaryText(this.theme),
+          fontStyle: 'bold',
+        })
+        .setOrigin(0.5),
+    );
+    STEP_TITLES.forEach((_t, i) => {
+      this.add2(
+        this.add.circle(
+          this.cx + (i - (STEP_TITLES.length - 1) / 2) * this.px(30),
+          this.px(112),
+          this.px(6),
+          i === this.step ? this.theme.accent : 0xffffff,
+          i === this.step ? 1 : 0.4,
+        ),
+      );
+    });
+  }
+
+  private footer(): void {
+    const y = this.H - this.px(50);
+    if (this.step > 0) {
+      this.add2(
+        new Button(this, this.px(110), y, 'Back', {
+          icon: '◀',
+          fill: 0x44507a,
+          width: this.px(180),
+          height: this.px(72),
+          fontSize: this.px(24),
+          onClick: () => this.goBack(),
+        }),
+      );
+    }
+    const isLast = this.step === STEP_TITLES.length - 1;
+    this.add2(
+      new Button(this, this.W - this.px(130), y, isLast ? 'Start!' : 'Next', {
+        icon: isLast ? '🎮' : '▶',
+        fill: isLast ? this.theme.correct : this.theme.accent,
+        textColor: isLast ? 0xffffff : 0x1b1b3a,
+        width: this.px(210),
+        height: this.px(72),
+        fontSize: this.px(26),
+        onClick: () => this.goNext(),
+      }),
+    );
+  }
+
   private goNext(): void {
     if (this.step === 1 && this.selectedTopics.size === 0) {
       Audio.speak('Please pick at least one topic');
@@ -193,160 +181,165 @@ export class MenuScene extends Phaser.Scene {
       return;
     }
     this.step++;
-    this.renderStep();
+    this.layout();
   }
 
   private goBack(): void {
     if (this.step === 0) return;
     this.step--;
-    this.renderStep();
+    this.layout();
   }
 
-  // --- Step 0: subject + grade ----------------------------------------------
+  // --- Step 0 ---------------------------------------------------------------
 
   private stepSubjectGrade(): void {
-    this.track(
-      this.add
-        .text(GAME_WIDTH / 2, 160, 'What do you want to practice?', {
-          fontFamily: 'system-ui, sans-serif',
-          fontSize: '24px',
-          color: accentText(this.theme),
-        })
-        .setOrigin(0.5),
-    );
+    const top = this.contentTop;
+    this.sectionLabel('What do you want to practice?', this.cx, top + this.px(10), true);
 
+    const cardW = this.portrait ? Math.min(this.px(300), this.W - this.px(60)) : this.px(280);
+    const cardH = this.px(150);
+    const gap = this.px(40);
     SUBJECTS.forEach((s, i) => {
-      const x = GAME_WIDTH / 2 + (i - (SUBJECTS.length - 1) / 2) * 340;
+      let x: number;
+      let y: number;
+      if (this.portrait) {
+        x = this.cx;
+        y = top + this.px(70) + cardH / 2 + i * (cardH + gap);
+      } else {
+        x = this.cx + (i - (SUBJECTS.length - 1) / 2) * (cardW + gap);
+        y = top + this.px(110) + cardH / 2;
+      }
       const selected = this.subjectId === s.id;
-      const card = addPanel(this, x, 290, 300, 180, selected ? this.theme.accent : this.theme.panel, 1, 24);
-      this.track(card);
-      this.track(this.add.text(x, 260, s.icon, { fontSize: '70px' }).setOrigin(0.5));
-      this.track(
+      this.add2(addPanel(this, x, y, cardW, cardH, selected ? this.theme.accent : this.theme.panel, 1, this.px(22)));
+      this.add2(this.add.text(x, y - cardH * 0.18, s.icon, { fontSize: this.fs(64) }).setOrigin(0.5));
+      this.add2(
         this.add
-          .text(x, 350, s.title, {
+          .text(x, y + cardH * 0.26, s.title, {
             fontFamily: 'system-ui, sans-serif',
-            fontSize: '28px',
+            fontSize: this.fs(26),
             color: textOn(selected ? this.theme.accent : this.theme.panel),
             fontStyle: 'bold',
             align: 'center',
-            wordWrap: { width: 280 },
+            wordWrap: { width: cardW - this.px(20) },
           })
           .setOrigin(0.5),
       );
-      this.hitArea(x, 290, 300, 180, () => {
+      this.hitArea(x, y, cardW, cardH, () => {
         this.subjectId = s.id;
         this.selectedTopics.clear();
         Audio.speak(s.title);
-        this.renderStep();
+        this.layout();
       });
     });
 
-    this.track(
-      this.add
-        .text(GAME_WIDTH / 2, 440, 'Grade level', {
-          fontFamily: 'system-ui, sans-serif',
-          fontSize: '22px',
-          color: accentText(this.theme),
-        })
-        .setOrigin(0.5),
-    );
+    // Grade picker near the bottom of the content area.
+    const gradeY = this.contentBottom - this.px(70);
+    this.sectionLabel('Grade level', this.cx, gradeY - this.px(50), true);
+    const gradeCols = this.portrait ? 2 : 4;
+    const gw = Math.min(this.px(180), (this.W - this.px(40)) / gradeCols - this.px(10));
     GRADE_BANDS.forEach((b, i) => {
-      const x = GAME_WIDTH / 2 + (i - (GRADE_BANDS.length - 1) / 2) * 200;
+      const col = i % gradeCols;
+      const row = Math.floor(i / gradeCols);
+      const totalW = gradeCols * gw + (gradeCols - 1) * this.px(16);
+      const x = this.cx - totalW / 2 + gw / 2 + col * (gw + this.px(16));
+      const y = gradeY + row * this.px(64);
       const selected = this.gradeBand === b.id;
-      this.track(
-        new Button(this, x, 510, b.label, {
+      this.add2(
+        new Button(this, x, y, b.label, {
           fill: selected ? this.theme.accent : 0x44507a,
           textColor: selected ? 0x1b1b3a : 0xffffff,
-          width: 185,
-          height: 66,
-          fontSize: 22,
+          width: gw,
+          height: this.px(56),
+          fontSize: this.px(20),
           onClick: () => {
             this.gradeBand = b.id;
             this.selectedTopics.clear();
-            this.renderStep();
+            this.layout();
           },
         }),
       );
     });
   }
 
-  // --- Step 1: topics (multi-select) ----------------------------------------
+  // --- Step 1 ---------------------------------------------------------------
 
   private stepTopics(): void {
     const all = topicsFor(this.subjectId);
     const inBand = all.filter((t) => t.gradeBands.includes(this.gradeBand));
     const topics = inBand.length > 0 ? inBand : all;
+    const top = this.contentTop;
 
-    this.track(
-      this.add
-        .text(GAME_WIDTH / 2, 150, `Tap to pick one or more  •  ${this.selectedTopics.size} selected`, {
-          fontFamily: 'system-ui, sans-serif',
-          fontSize: '22px',
-          color: accentText(this.theme),
-        })
-        .setOrigin(0.5),
+    this.sectionLabel(
+      `Tap to pick one or more  •  ${this.selectedTopics.size} selected`,
+      this.cx,
+      top,
+      true,
     );
 
-    // Select all / clear.
-    this.track(
-      new Button(this, GAME_WIDTH / 2 - 110, 198, 'Select All', {
+    const btnY = top + this.px(40);
+    this.add2(
+      new Button(this, this.cx - this.px(110), btnY, 'Select All', {
         fill: 0x44507a,
-        width: 200,
-        height: 50,
-        fontSize: 20,
+        width: this.px(200),
+        height: this.px(46),
+        fontSize: this.px(18),
         onClick: () => {
           topics.forEach((t) => this.selectedTopics.add(t.id));
-          this.renderStep();
+          this.layout();
         },
       }),
     );
-    this.track(
-      new Button(this, GAME_WIDTH / 2 + 110, 198, 'Clear', {
+    this.add2(
+      new Button(this, this.cx + this.px(110), btnY, 'Clear', {
         fill: 0x44507a,
-        width: 200,
-        height: 50,
-        fontSize: 20,
+        width: this.px(200),
+        height: this.px(46),
+        fontSize: this.px(18),
         onClick: () => {
           this.selectedTopics.clear();
-          this.renderStep();
+          this.layout();
         },
       }),
     );
 
-    const perRow = 3;
-    const startY = 270;
-    const cardW = 290;
-    const cardH = 96;
+    const gridTop = btnY + this.px(40);
+    const gridH = this.contentBottom - gridTop;
+    const cols = this.portrait ? 2 : this.W < 900 ? 2 : 3;
+    const rows = Math.ceil(topics.length / cols);
+    const gapX = this.px(16);
+    const gapY = this.px(12);
+    const cardW = Math.min(this.px(300), (this.W - this.px(40) - (cols - 1) * gapX) / cols);
+    const cardH = Math.max(this.px(60), Math.min(this.px(96), (gridH - (rows - 1) * gapY) / rows));
+
     topics.forEach((t, i) => {
-      const col = i % perRow;
-      const row = Math.floor(i / perRow);
-      const x = GAME_WIDTH / 2 + (col - (perRow - 1) / 2) * (cardW + 16);
-      const y = startY + row * (cardH + 14);
+      const col = i % cols;
+      const row = Math.floor(i / cols);
+      const totalW = cols * cardW + (cols - 1) * gapX;
+      const x = this.cx - totalW / 2 + cardW / 2 + col * (cardW + gapX);
+      const y = gridTop + cardH / 2 + row * (cardH + gapY);
       const selected = this.selectedTopics.has(t.id);
 
-      const card = addPanel(this, x, y, cardW, cardH, selected ? this.theme.correct : this.theme.panel, 1, 18);
-      this.track(card);
-      this.track(this.add.text(x - cardW / 2 + 36, y, t.icon, { fontSize: '38px' }).setOrigin(0.5));
-      this.track(
+      this.add2(addPanel(this, x, y, cardW, cardH, selected ? this.theme.correct : this.theme.panel, 1, this.px(16)));
+      this.add2(this.add.text(x - cardW / 2 + this.px(34), y, t.icon, { fontSize: this.fs(34) }).setOrigin(0.5));
+      this.add2(
         this.add
-          .text(x - cardW / 2 + 70, y, t.title, {
+          .text(x - cardW / 2 + this.px(66), y, t.title, {
             fontFamily: 'system-ui, sans-serif',
-            fontSize: '21px',
+            fontSize: this.fs(20),
             color: textOn(selected ? this.theme.correct : this.theme.panel),
             fontStyle: 'bold',
-            wordWrap: { width: cardW - 110 },
+            wordWrap: { width: cardW - this.px(100) },
           })
           .setOrigin(0, 0.5),
       );
       if (selected) {
-        this.track(
+        this.add2(
           this.add
-            .text(x + cardW / 2 - 28, y, '✓', { fontSize: '30px', color: textOn(this.theme.correct) })
+            .text(x + cardW / 2 - this.px(24), y, '✓', { fontSize: this.fs(28), color: textOn(this.theme.correct) })
             .setOrigin(0.5),
         );
       }
 
-      // Card tap zone first...
       this.hitArea(x, y, cardW, cardH, () => {
         if (this.selectedTopics.has(t.id)) this.selectedTopics.delete(t.id);
         else {
@@ -354,161 +347,141 @@ export class MenuScene extends Phaser.Scene {
           Audio.speak(t.title);
         }
         Audio.play('pop');
-        this.renderStep();
+        this.layout();
       });
 
-      // ...then the standards ⓘ on top so it stays tappable.
       const info = this.add
-        .text(x + cardW / 2 - 22, y - cardH / 2 + 16, 'ⓘ', { fontSize: '18px', color: mutedText(this.theme) })
+        .text(x + cardW / 2 - this.px(20), y - cardH / 2 + this.px(14), 'ⓘ', {
+          fontSize: this.fs(16),
+          color: mutedText(this.theme),
+        })
         .setOrigin(0.5)
         .setInteractive({ useHandCursor: true });
       info.on('pointerup', (_p: unknown, _lx: unknown, _ly: unknown, ev: Phaser.Types.Input.EventData) => {
         ev.stopPropagation();
         this.showStandards(t.id);
       });
-      this.track(info);
+      this.add2(info);
     });
   }
 
-  // --- Step 2: difficulty + count -------------------------------------------
+  // --- Step 2 ---------------------------------------------------------------
 
   private stepOptions(): void {
-    this.track(
-      this.add
-        .text(GAME_WIDTH / 2, 180, 'How tricky?', {
-          fontFamily: 'system-ui, sans-serif',
-          fontSize: '26px',
-          color: accentText(this.theme),
-        })
-        .setOrigin(0.5),
-    );
+    const top = this.contentTop;
+    this.sectionLabel('How tricky?', this.cx, top + this.px(20), true);
+    const dW = Math.min(this.px(210), (this.W - this.px(60)) / 3 - this.px(10));
     DIFFICULTIES.forEach((d, i) => {
-      const x = GAME_WIDTH / 2 + (i - 1) * 230;
-      const selected = this.difficulty === d.id;
-      this.track(
-        new Button(this, x, 260, d.label, {
+      const x = this.cx + (i - 1) * (dW + this.px(16));
+      this.add2(
+        new Button(this, x, top + this.px(90), d.label, {
           icon: d.icon,
-          fill: selected ? this.theme.accent : 0x44507a,
-          textColor: selected ? 0x1b1b3a : 0xffffff,
-          width: 210,
-          height: 90,
-          fontSize: 28,
+          fill: this.difficulty === d.id ? this.theme.accent : 0x44507a,
+          textColor: this.difficulty === d.id ? 0x1b1b3a : 0xffffff,
+          width: dW,
+          height: this.px(84),
+          fontSize: this.px(26),
           onClick: () => {
             this.difficulty = d.id;
-            this.renderStep();
+            this.layout();
           },
         }),
       );
     });
 
-    this.track(
-      this.add
-        .text(GAME_WIDTH / 2, 380, 'How many questions?', {
-          fontFamily: 'system-ui, sans-serif',
-          fontSize: '26px',
-          color: accentText(this.theme),
-        })
-        .setOrigin(0.5),
-    );
+    this.sectionLabel('How many questions?', this.cx, top + this.px(180), true);
+    const qW = Math.min(this.px(150), (this.W - this.px(60)) / 4 - this.px(10));
     QUESTION_COUNTS.forEach((c, i) => {
-      const x = GAME_WIDTH / 2 + (i - (QUESTION_COUNTS.length - 1) / 2) * 180;
-      const selected = this.questionCount === c;
-      this.track(
-        new Button(this, x, 460, String(c), {
-          fill: selected ? this.theme.accent : 0x44507a,
-          textColor: selected ? 0x1b1b3a : 0xffffff,
-          width: 150,
-          height: 90,
-          fontSize: 34,
+      const x = this.cx + (i - (QUESTION_COUNTS.length - 1) / 2) * (qW + this.px(16));
+      this.add2(
+        new Button(this, x, top + this.px(250), String(c), {
+          fill: this.questionCount === c ? this.theme.accent : 0x44507a,
+          textColor: this.questionCount === c ? 0x1b1b3a : 0xffffff,
+          width: qW,
+          height: this.px(84),
+          fontSize: this.px(32),
           onClick: () => {
             this.questionCount = c;
-            this.renderStep();
+            this.layout();
           },
         }),
       );
     });
 
-    // Quick recap of what they picked.
     const topicNames = [...this.selectedTopics]
       .map((id) => getTopic(id)?.title)
       .filter(Boolean)
       .join(', ');
-    this.track(
+    this.add2(
       this.add
-        .text(GAME_WIDTH / 2, 580, `Topics: ${topicNames}`, {
+        .text(this.cx, this.contentBottom - this.px(20), `Topics: ${topicNames}`, {
           fontFamily: 'system-ui, sans-serif',
-          fontSize: '20px',
+          fontSize: this.fs(18),
           color: mutedText(this.theme),
           align: 'center',
-          wordWrap: { width: 800 },
+          wordWrap: { width: this.W - this.px(80) },
         })
         .setOrigin(0.5),
     );
   }
 
-  // --- Step 3: theme picker with live preview -------------------------------
+  // --- Step 3 ---------------------------------------------------------------
 
   private stepTheme(): void {
-    this.track(
-      this.add
-        .text(GAME_WIDTH / 2, 160, 'Tap a theme — watch it come alive!', {
-          fontFamily: 'system-ui, sans-serif',
-          fontSize: '24px',
-          color: accentText(this.theme),
-        })
-        .setOrigin(0.5),
-    );
+    const top = this.contentTop;
+    this.sectionLabel('Tap a theme — watch it come alive!', this.cx, top + this.px(6), true);
 
-    const perRow = 2;
-    const cardW = 380;
-    const cardH = 200;
+    const gridTop = top + this.px(40);
+    const gridH = this.contentBottom - gridTop;
+    const cols = this.portrait ? 1 : 2;
+    const rows = Math.ceil(THEMES.length / cols);
+    const gapX = this.px(24);
+    const gapY = this.px(20);
+    const cardW = Math.min(this.px(380), (this.W - this.px(50) - (cols - 1) * gapX) / cols);
+    const cardH = Math.max(this.px(110), Math.min(this.px(190), (gridH - (rows - 1) * gapY) / rows));
+
     THEMES.forEach((t, i) => {
-      const col = i % perRow;
-      const row = Math.floor(i / perRow);
-      const x = GAME_WIDTH / 2 + (col - (perRow - 1) / 2) * (cardW + 30);
-      const y = 300 + row * (cardH + 30);
+      const col = i % cols;
+      const row = Math.floor(i / cols);
+      const totalW = cols * cardW + (cols - 1) * gapX;
+      const x = this.cx - totalW / 2 + cardW / 2 + col * (cardW + gapX);
+      const y = gridTop + cardH / 2 + row * (cardH + gapY);
       const selected = this.profile.theme === t.id;
 
-      // Mini gradient swatch as a live preview.
       const swatchKey = `swatch-${t.id}`;
       if (!this.textures.exists(swatchKey)) {
-        const tex = this.textures.createCanvas(swatchKey, cardW, cardH);
-        const ctx = tex?.getContext();
-        if (ctx) {
-          const grad = ctx.createLinearGradient(0, 0, 0, cardH);
-          grad.addColorStop(0, `#${t.bgTop.toString(16).padStart(6, '0')}`);
-          grad.addColorStop(1, `#${t.bgBottom.toString(16).padStart(6, '0')}`);
-          ctx.fillStyle = grad;
-          ctx.fillRect(0, 0, cardW, cardH);
-          tex?.refresh();
-        }
+        const g = this.make.graphics({ x: 0, y: 0 });
+        g.fillGradientStyle(t.bgTop, t.bgTop, t.bgBottom, t.bgBottom, 1);
+        g.fillRect(0, 0, 380, 190);
+        g.generateTexture(swatchKey, 380, 190);
+        g.destroy();
       }
       const swatch = this.add.image(x, y, swatchKey);
-      this.track(swatch);
+      swatch.setDisplaySize(cardW, cardH);
+      this.add2(swatch);
 
       const border = this.add.graphics();
-      border.lineStyle(selected ? 8 : 3, selected ? this.theme.accent : 0xffffff, selected ? 1 : 0.5);
-      border.strokeRoundedRect(x - cardW / 2, y - cardH / 2, cardW, cardH, 18);
-      this.track(border);
+      border.lineStyle(selected ? this.px(8) : this.px(3), selected ? this.theme.accent : 0xffffff, selected ? 1 : 0.5);
+      border.strokeRoundedRect(x - cardW / 2, y - cardH / 2, cardW, cardH, this.px(18));
+      this.add2(border);
 
-      // Live preview: mascot + a couple of animated drifters inside the card.
-      const mascot = this.add.text(x - 110, y, t.mascot, { fontSize: '70px' }).setOrigin(0.5);
-      this.track(mascot);
-      this.tweens.add({ targets: mascot, y: y - 14, duration: 900, yoyo: true, repeat: -1, ease: 'Sine.inOut' });
+      const mascot = this.add.text(x - cardW * 0.28, y, t.mascot, { fontSize: this.fs(64) }).setOrigin(0.5);
+      this.add2(mascot);
+      this.tweens.add({ targets: mascot, y: y - this.px(12), duration: 900, yoyo: true, repeat: -1, ease: 'Sine.inOut' });
 
-      this.track(
+      this.add2(
         this.add
-          .text(x + 40, y - 20, `${t.icon} ${t.name}`, {
+          .text(x + cardW * 0.1, y - this.px(18), `${t.icon} ${t.name}`, {
             fontFamily: 'system-ui, sans-serif',
-            fontSize: '30px',
-            color: `#${t.text.toString(16).padStart(6, '0')}`,
+            fontSize: this.fs(28),
+            color: primaryText(t),
             fontStyle: 'bold',
           })
           .setOrigin(0.5),
       );
       if (selected) {
-        this.track(
-          this.add.text(x + 40, y + 30, '✓ Selected', { fontSize: '22px', color: primaryText(t) }).setOrigin(0.5),
+        this.add2(
+          this.add.text(x + cardW * 0.1, y + this.px(26), '✓ Selected', { fontSize: this.fs(20), color: primaryText(t) }).setOrigin(0.5),
         );
       }
 
@@ -516,13 +489,12 @@ export class MenuScene extends Phaser.Scene {
         this.profile = updateProfile(this.profile.id, { theme: t.id }) ?? this.profile;
         this.theme = getTheme(t.id);
         Audio.play('whoosh');
-        this.applyTheme(); // background + ambiance change instantly
-        this.renderStep();
+        this.applyTheme();
       });
     });
   }
 
-  // --- Launch ----------------------------------------------------------------
+  // --- Launch + helpers -----------------------------------------------------
 
   private launch(): void {
     const data: QuizSceneData = {
@@ -538,34 +510,34 @@ export class MenuScene extends Phaser.Scene {
     this.scene.start(SceneKeys.Quiz, data);
   }
 
-  // --- Helpers ---------------------------------------------------------------
-
-  /** Add an object to the per-step content container so it is cleared on nav. */
-  private track<T extends Phaser.GameObjects.GameObject>(o: T): T {
-    this.content.add(o);
-    return o;
+  private sectionLabel(text: string, x: number, y: number, center = false): void {
+    this.add2(
+      this.add
+        .text(x, y, text, {
+          fontFamily: 'system-ui, sans-serif',
+          fontSize: this.fs(22),
+          color: accentText(this.theme),
+        })
+        .setOrigin(center ? 0.5 : 0, 0.5),
+    );
   }
 
-  /** Invisible interactive zone over a card (added to content). */
   private hitArea(x: number, y: number, w: number, h: number, onClick: () => void): void {
     const zone = this.add.zone(x, y, w, h).setInteractive({ useHandCursor: true });
     zone.on('pointerup', () => {
       Audio.play('click');
       onClick();
     });
-    this.track(zone);
+    this.add2(zone);
   }
 
-  private iconButton(x: number, y: number, icon: string, onClick: () => void): void {
-    const t = this.add
-      .text(x, y, icon, { fontSize: '34px' })
-      .setOrigin(0.5)
-      .setDepth(5)
-      .setInteractive({ useHandCursor: true });
+  private iconBtn(x: number, y: number, icon: string, onClick: () => void): void {
+    const t = this.add.text(x, y, icon, { fontSize: this.fs(32) }).setOrigin(0.5).setInteractive({ useHandCursor: true });
     t.on('pointerup', () => {
       Audio.play('click');
       onClick();
     });
+    this.add2(t);
   }
 
   private tapSparkle(p: Phaser.Input.Pointer): void {
@@ -586,9 +558,9 @@ export class MenuScene extends Phaser.Scene {
 
   private flashHint(msg: string): void {
     const t = this.add
-      .text(GAME_WIDTH / 2, GAME_HEIGHT - 130, msg, {
+      .text(this.cx, this.H - this.px(120), msg, {
         fontFamily: 'system-ui, sans-serif',
-        fontSize: '22px',
+        fontSize: this.fs(22),
         color: '#1b1b3a',
         backgroundColor: '#ffd166',
         padding: { x: 16, y: 8 },
@@ -602,9 +574,11 @@ export class MenuScene extends Phaser.Scene {
     const topic = getTopic(topicId);
     if (!topic) return;
     const overlay = this.add.container(0, 0).setDepth(3000);
-    const dim = this.add.rectangle(GAME_WIDTH / 2, GAME_HEIGHT / 2, GAME_WIDTH, GAME_HEIGHT, 0x000000, 0.6);
+    const pw = Math.min(this.px(720), this.W - this.px(30));
+    const ph = Math.min(this.px(420), this.H - this.px(30));
+    const dim = this.add.rectangle(this.cx, this.cy, this.W, this.H, 0x000000, 0.6);
     dim.setInteractive().on('pointerup', () => overlay.destroy());
-    const panel = addPanel(this, GAME_WIDTH / 2, GAME_HEIGHT / 2, 720, 420, this.theme.panel, 1, 24);
+    const panel = addPanel(this, this.cx, this.cy, pw, ph, this.theme.panel, 1, this.px(24));
     const text = [
       `${topic.icon}  ${topic.title}`,
       '',
@@ -618,16 +592,19 @@ export class MenuScene extends Phaser.Scene {
       dim,
       panel,
       this.add
-        .text(GAME_WIDTH / 2, GAME_HEIGHT / 2, text, {
+        .text(this.cx, this.cy, text, {
           fontFamily: 'system-ui, sans-serif',
-          fontSize: '22px',
+          fontSize: this.fs(20),
           color: textOn(this.theme.panel),
           align: 'left',
           lineSpacing: 6,
         })
         .setOrigin(0.5),
       this.add
-        .text(GAME_WIDTH / 2 + 330, GAME_HEIGHT / 2 - 190, '✕', { fontSize: '28px', color: textOn(this.theme.panel) })
+        .text(this.cx + pw / 2 - this.px(28), this.cy - ph / 2 + this.px(24), '✕', {
+          fontSize: this.fs(26),
+          color: textOn(this.theme.panel),
+        })
         .setOrigin(0.5)
         .setInteractive({ useHandCursor: true })
         .on('pointerup', () => overlay.destroy()),
@@ -636,15 +613,17 @@ export class MenuScene extends Phaser.Scene {
 
   private showSettings(): void {
     const overlay = this.add.container(0, 0).setDepth(3000);
-    const dim = this.add.rectangle(GAME_WIDTH / 2, GAME_HEIGHT / 2, GAME_WIDTH, GAME_HEIGHT, 0x000000, 0.6);
+    const pw = Math.min(this.px(640), this.W - this.px(30));
+    const ph = Math.min(this.px(480), this.H - this.px(30));
+    const dim = this.add.rectangle(this.cx, this.cy, this.W, this.H, 0x000000, 0.6);
     dim.setInteractive().on('pointerup', () => overlay.destroy());
-    const panel = addPanel(this, GAME_WIDTH / 2, GAME_HEIGHT / 2, 640, 480, this.theme.panel, 1, 24);
+    const panel = addPanel(this, this.cx, this.cy, pw, ph, this.theme.panel, 1, this.px(24));
     overlay.add([dim, panel]);
     overlay.add(
       this.add
-        .text(GAME_WIDTH / 2, GAME_HEIGHT / 2 - 200, '⚙️ Settings', {
+        .text(this.cx, this.cy - ph / 2 + this.px(40), '⚙️ Settings', {
           fontFamily: 'system-ui, sans-serif',
-          fontSize: '32px',
+          fontSize: this.fs(32),
           color: textOn(this.theme.panel),
           fontStyle: 'bold',
         })
@@ -658,23 +637,23 @@ export class MenuScene extends Phaser.Scene {
       { key: 'dyslexiaFont', label: '🔡 Easy-read font' },
     ];
     toggles.forEach((t, i) => {
-      const y = GAME_HEIGHT / 2 - 110 + i * 80;
+      const y = this.cy - ph / 2 + this.px(110) + i * this.px(80);
       overlay.add(
         this.add
-          .text(GAME_WIDTH / 2 - 230, y, t.label, {
+          .text(this.cx - pw / 2 + this.px(40), y, t.label, {
             fontFamily: 'system-ui, sans-serif',
-            fontSize: '26px',
+            fontSize: this.fs(26),
             color: textOn(this.theme.panel),
           })
           .setOrigin(0, 0.5),
       );
       const makeBtn = (): Button => {
         const on = getSettings()[t.key];
-        const btn = new Button(this, GAME_WIDTH / 2 + 200, y, on ? 'ON' : 'OFF', {
+        const btn = new Button(this, this.cx + pw / 2 - this.px(90), y, on ? 'ON' : 'OFF', {
           fill: on ? this.theme.correct : 0x666666,
-          width: 120,
-          height: 56,
-          fontSize: 22,
+          width: this.px(120),
+          height: this.px(54),
+          fontSize: this.px(22),
           onClick: () => {
             updateSettings({ [t.key]: !getSettings()[t.key] });
             btn.destroy();
