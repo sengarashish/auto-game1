@@ -1,0 +1,15 @@
+{
+  "_comment": "rhymeGroups: words that rhyme, grouped by rime. Used by the rhyming generator (correct = same group, distractors = other groups).",
+  "rhymeGroups": {
+    "-at": ["cat", "hat", "bat", "mat", "rat"],
+    "-an": ["can", "pan", "fan", "man", "van"],
+    "-ig": ["pig", "wig", "dig", "fig", "big"],
+    "-op": ["top", "mop", "hop", "pop", "cop"],
+    "-un": ["sun", "run", "bun", "fun", "gun"],
+    "-ed": ["bed", "red", "led", "fed", "wed"],
+    "-ake": ["cake", "lake", "make", "rake", "snake"],
+    "-ing": ["king", "ring", "sing", "wing", "swing"],
+    "-all": ["ball", "wall", "tall", "call", "fall"],
+    "-ight": ["light", "night", "right", "sight", "bright"]
+  }
+}

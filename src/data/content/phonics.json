@@ -1,0 +1,38 @@
+{
+  "_comment": "Phonics data. letterSounds: example word + emoji per letter (beginning sound). cvcWords: simple decodable words by short-vowel family.",
+  "letterSounds": {
+    "a": { "word": "apple", "emoji": "🍎", "sound": "ah" },
+    "b": { "word": "ball", "emoji": "⚽", "sound": "buh" },
+    "c": { "word": "cat", "emoji": "🐱", "sound": "kuh" },
+    "d": { "word": "dog", "emoji": "🐶", "sound": "duh" },
+    "e": { "word": "egg", "emoji": "🥚", "sound": "eh" },
+    "f": { "word": "fish", "emoji": "🐟", "sound": "fuh" },
+    "g": { "word": "goat", "emoji": "🐐", "sound": "guh" },
+    "h": { "word": "hat", "emoji": "🎩", "sound": "huh" },
+    "i": { "word": "igloo", "emoji": "🛖", "sound": "ih" },
+    "j": { "word": "jam", "emoji": "🫙", "sound": "juh" },
+    "k": { "word": "kite", "emoji": "🪁", "sound": "kuh" },
+    "l": { "word": "lion", "emoji": "🦁", "sound": "luh" },
+    "m": { "word": "moon", "emoji": "🌙", "sound": "muh" },
+    "n": { "word": "nest", "emoji": "🪺", "sound": "nuh" },
+    "o": { "word": "octopus", "emoji": "🐙", "sound": "ah" },
+    "p": { "word": "pig", "emoji": "🐷", "sound": "puh" },
+    "q": { "word": "queen", "emoji": "👑", "sound": "kwuh" },
+    "r": { "word": "rabbit", "emoji": "🐰", "sound": "ruh" },
+    "s": { "word": "sun", "emoji": "☀️", "sound": "sss" },
+    "t": { "word": "turtle", "emoji": "🐢", "sound": "tuh" },
+    "u": { "word": "umbrella", "emoji": "☂️", "sound": "uh" },
+    "v": { "word": "van", "emoji": "🚐", "sound": "vuh" },
+    "w": { "word": "whale", "emoji": "🐳", "sound": "wuh" },
+    "x": { "word": "fox", "emoji": "🦊", "sound": "ks" },
+    "y": { "word": "yarn", "emoji": "🧶", "sound": "yuh" },
+    "z": { "word": "zebra", "emoji": "🦓", "sound": "zzz" }
+  },
+  "cvcWords": {
+    "a": ["cat", "bat", "hat", "map", "bag", "can", "fan", "jam", "pan", "rat"],
+    "e": ["bed", "red", "hen", "pen", "net", "pet", "wet", "leg", "ten", "jet"],
+    "i": ["pig", "big", "wig", "pin", "win", "sit", "lip", "fin", "kid", "lid"],
+    "o": ["dog", "log", "hot", "pot", "box", "fox", "top", "mop", "cot", "hop"],
+    "u": ["sun", "bun", "run", "cup", "pup", "bug", "rug", "mud", "nut", "hut"]
+  }
+}

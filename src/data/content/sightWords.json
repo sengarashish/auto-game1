@@ -1,0 +1,24 @@
+{
+  "_comment": "Dolch/Fry-style high-frequency sight words by grade band. Used by the sightWord ELA generator.",
+  "pk-k": [
+    "a", "and", "the", "I", "to", "see", "we", "go", "you", "it",
+    "in", "is", "my", "me", "like", "can", "am", "at", "up", "look",
+    "on", "no", "yes", "he", "she"
+  ],
+  "1-2": [
+    "have", "they", "said", "with", "this", "what", "were", "when", "your", "from",
+    "want", "some", "come", "would", "there", "their", "which", "about", "could", "many",
+    "after", "again", "because", "very", "every"
+  ],
+  "3-5": [
+    "through", "thought", "enough", "should", "different", "important", "another", "between",
+    "answer", "world", "always", "almost", "around", "people", "before", "great", "where",
+    "country", "example", "sentence", "mountain", "together", "started", "remember", "sometimes"
+  ],
+  "6-8": [
+    "necessary", "definitely", "separate", "believe", "receive", "achieve", "weird",
+    "rhythm", "knowledge", "experience", "government", "environment", "argument",
+    "beginning", "convenient", "embarrass", "occasion", "privilege", "recommend",
+    "restaurant", "tomorrow", "vacuum", "library", "February", "Wednesday"
+  ]
+}
