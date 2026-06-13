@@ -16,7 +16,10 @@ export function createGameConfig(scenes: Phaser.Types.Scenes.SceneType[]): Phase
     height: GAME_HEIGHT,
     scale: {
       mode: Phaser.Scale.FIT,
-      autoCenter: Phaser.Scale.CENTER_BOTH,
+      // Center horizontally but anchor to the TOP. On tall/portrait phones this
+      // keeps the game pinned to the top of the screen instead of floating in
+      // the vertical middle with a big empty band above it.
+      autoCenter: Phaser.Scale.CENTER_HORIZONTALLY,
     },
     render: {
       antialias: true,

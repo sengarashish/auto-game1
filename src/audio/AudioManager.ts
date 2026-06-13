@@ -244,8 +244,26 @@ const SPEECH_PICTO_RE = new RegExp('\\p{Extended_Pictographic}|[\\u{1F1E6}-\\u{1
 // eslint-disable-next-line no-misleading-character-class -- intentional: stripping combining marks
 const SPEECH_MOD_RE = new RegExp('[\\u{FE00}-\\u{FE0F}\\u{200D}\\u{20E3}]', 'gu');
 
-export function stripForSpeech(text: string): string {
+/**
+ * Replace math symbols with the words TTS should say. Without this, browsers
+ * read "×" as the letter "x" and skip "−"/"÷" entirely.
+ */
+function speakMathSymbols(text: string): string {
   return text
+    .replace(/×/g, ' times ') // ×
+    .replace(/÷/g, ' divided by ') // ÷
+    .replace(/−/g, ' minus ') // − (true minus sign)
+    .replace(/≥/g, ' is greater than or equal to ') // ≥
+    .replace(/≤/g, ' is less than or equal to ') // ≤
+    .replace(/>/g, ' is greater than ')
+    .replace(/</g, ' is less than ')
+    .replace(/\+/g, ' plus ')
+    .replace(/=/g, ' equals ')
+    .replace(/¢/g, ' cents '); // ¢
+}
+
+export function stripForSpeech(text: string): string {
+  return speakMathSymbols(text)
     .replace(SPEECH_PICTO_RE, ' ')
     .replace(SPEECH_MOD_RE, '')
     .replace(/\s+/g, ' ')

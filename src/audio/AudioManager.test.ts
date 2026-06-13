@@ -7,9 +7,15 @@ describe('stripForSpeech', () => {
     expect(stripForSpeech('🍎🍎🍎 How many?')).toBe('How many?');
   });
 
-  it('keeps digits and math symbols intact', () => {
-    expect(stripForSpeech('3 × 4 = ?')).toBe('3 × 4 = ?');
-    expect(stripForSpeech('12 − 5 = ?')).toBe('12 − 5 = ?');
+  it('speaks math symbols as words (× → times, − → minus, etc.)', () => {
+    expect(stripForSpeech('3 × 4 = ?')).toBe('3 times 4 equals ?');
+    expect(stripForSpeech('12 − 5 = ?')).toBe('12 minus 5 equals ?');
+    expect(stripForSpeech('20 ÷ 4 = ?')).toBe('20 divided by 4 equals ?');
+    expect(stripForSpeech('2 + 6 = ?')).toBe('2 plus 6 equals ?');
+  });
+
+  it('keeps plain digits intact', () => {
+    expect(stripForSpeech('Count to 100')).toBe('Count to 100');
   });
 
   it('strips emoji that use variation selectors', () => {
