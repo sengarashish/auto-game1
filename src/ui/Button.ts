@@ -13,6 +13,11 @@ export interface ButtonOptions {
   textColor?: number;
   fontSize?: number;
   icon?: string;
+  /**
+   * When set, a small 🔊 badge is shown on the left of the button. Tapping it
+   * reads this text aloud (for pre-/early readers) without triggering onClick.
+   */
+  speak?: string;
   onClick: () => void;
 }
 
@@ -33,19 +38,36 @@ export class Button extends Phaser.GameObjects.Container {
       ? 'Comic Sans MS, Verdana, sans-serif'
       : 'system-ui, Segoe UI, Roboto, sans-serif';
 
+    const fontSize = opts.fontSize ?? 28;
+    // A read-aloud badge (if requested) sits on the left; nudge the label right
+    // and narrow its wrap so the two never overlap.
+    const speakPad = opts.speak ? Math.round(fontSize * 1.4) : 0;
     const labelText = opts.icon ? `${opts.icon}  ${text}` : text;
     this.label = scene.add
-      .text(0, 0, labelText, {
+      .text(speakPad / 2, 0, labelText, {
         fontFamily,
-        fontSize: `${opts.fontSize ?? 28}px`,
+        fontSize: `${fontSize}px`,
         color: colorToCss(opts.textColor ?? 0xffffff),
         fontStyle: 'bold',
         align: 'center',
-        wordWrap: { width: w - 24 },
+        wordWrap: { width: w - 24 - speakPad },
       })
       .setOrigin(0.5);
 
     this.add([this.bg, this.label]);
+
+    if (opts.speak) {
+      const badge = scene.add
+        .text(-w / 2 + Math.round(fontSize * 0.8), 0, '🔊', { fontSize: `${Math.round(fontSize * 0.82)}px` })
+        .setOrigin(0.5)
+        .setInteractive({ useHandCursor: true });
+      badge.on('pointerup', (_p: unknown, _lx: unknown, _ly: unknown, ev?: Phaser.Types.Input.EventData) => {
+        ev?.stopPropagation();
+        Audio.play('click');
+        Audio.speak(opts.speak!, { force: true });
+      });
+      this.add(badge);
+    }
     this.setSize(w, h);
     this.setInteractive({ useHandCursor: true });
 

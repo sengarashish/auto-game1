@@ -5,6 +5,8 @@
 export interface Settings {
   /** Narrate prompts/answers with text-to-speech. */
   narration: boolean;
+  /** Use the high-quality Piper neural voice (falls back to the OS voice). */
+  naturalVoice: boolean;
   /** Play sound effects. */
   sound: boolean;
   /** Reduce/disable non-essential animation. */
@@ -17,6 +19,7 @@ const KEY = 'quizquest.settings.v1';
 
 const DEFAULTS: Settings = {
   narration: true,
+  naturalVoice: true,
   sound: true,
   reducedMotion: false,
   dyslexiaFont: false,

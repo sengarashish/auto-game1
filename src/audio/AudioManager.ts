@@ -5,6 +5,7 @@
  * (audio simply no-ops until an AudioContext can start).
  */
 import { getSettings } from '../config/settings';
+import { Piper } from './piper';
 
 type SfxName = 'correct' | 'wrong' | 'click' | 'win' | 'star' | 'pop' | 'whoosh' | 'streak';
 
@@ -13,6 +14,9 @@ class AudioManagerImpl {
   private voice: SpeechSynthesisVoice | null = null;
   private speechQueue: string[] = [];
   private keepAlive: ReturnType<typeof setInterval> | null = null;
+  /** Monotonic token to cancel an in-flight Piper utterance (async chunks). */
+  private piperToken = 0;
+  private piperSource: AudioBufferSourceNode | null = null;
 
   /** Call from a user-gesture handler to unlock audio on mobile/Safari. */
   unlock(): void {
@@ -20,6 +24,8 @@ class AudioManagerImpl {
     if (this.ctx && this.ctx.state === 'suspended') void this.ctx.resume();
     // Prime speech synthesis voice list.
     this.pickVoice();
+    // Kick off the neural-voice download in the background (best effort).
+    if (getSettings().naturalVoice) void Piper.init();
   }
 
   private ensureCtx(): AudioContext | null {
@@ -79,17 +85,69 @@ class AudioManagerImpl {
    */
   speak(text: string, opts: { rate?: number; pitch?: number; force?: boolean } = {}): void {
     if (!opts.force && !getSettings().narration) return;
-    if (typeof speechSynthesis === 'undefined' || !text) return;
+    if (!text) return;
 
     const clean = stripForSpeech(text);
     if (!clean) return;
 
+    this.stopSpeech();
+
+    // Prefer the high-quality Piper voice once it has finished loading; until
+    // then (or if it failed/disabled) fall back to the Web Speech API.
+    if (getSettings().naturalVoice && Piper.ready) {
+      void this.speakPiper(clean, opts);
+    } else {
+      this.speakSystem(clean, opts);
+    }
+  }
+
+  private speakSystem(clean: string, opts: { rate?: number; pitch?: number }): void {
+    if (typeof speechSynthesis === 'undefined') return;
     this.pickVoice();
     speechSynthesis.cancel();
     this.speechQueue = chunkText(clean);
     // A small delay after cancel() avoids the race that drops the first words.
     setTimeout(() => this.drainSpeech(opts.rate, opts.pitch), 80);
     this.startKeepAlive();
+  }
+
+  /** Speak via Piper: synth each chunk to a WAV and play through the AudioContext. */
+  private async speakPiper(clean: string, opts: { rate?: number }): Promise<void> {
+    const token = ++this.piperToken;
+    for (const chunk of chunkText(clean)) {
+      const blob = await Piper.synthesize(chunk);
+      if (token !== this.piperToken) return; // a newer utterance superseded us
+      if (!blob) {
+        // Piper dropped out mid-stream — finish on the system voice.
+        this.speakSystem(clean, opts);
+        return;
+      }
+      await this.playBlob(blob, token, opts.rate);
+      if (token !== this.piperToken) return;
+    }
+  }
+
+  private async playBlob(blob: Blob, token: number, rate?: number): Promise<void> {
+    const ctx = this.ensureCtx();
+    if (!ctx) return;
+    if (ctx.state === 'suspended') await ctx.resume();
+    let audioBuf: AudioBuffer;
+    try {
+      audioBuf = await ctx.decodeAudioData(await blob.arrayBuffer());
+    } catch {
+      return;
+    }
+    if (token !== this.piperToken) return;
+    await new Promise<void>((resolve) => {
+      const src = ctx.createBufferSource();
+      src.buffer = audioBuf;
+      // Gentle pacing for young listeners (also slightly lowers pitch).
+      src.playbackRate.value = rate ?? 0.96;
+      src.connect(ctx.destination);
+      src.onended = () => resolve();
+      this.piperSource = src;
+      src.start();
+    });
   }
 
   private drainSpeech(rate?: number, pitch?: number): void {
@@ -128,6 +186,17 @@ class AudioManagerImpl {
     this.speechQueue = [];
     this.stopKeepAlive();
     if (typeof speechSynthesis !== 'undefined') speechSynthesis.cancel();
+    // Cancel any in-flight Piper utterance and stop current playback.
+    this.piperToken++;
+    if (this.piperSource) {
+      this.piperSource.onended = null;
+      try {
+        this.piperSource.stop();
+      } catch {
+        /* already stopped */
+      }
+      this.piperSource = null;
+    }
   }
 
   /** Play a short synthesized sound effect. */

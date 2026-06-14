@@ -37,7 +37,7 @@ export class ProfileScene extends BaseScene {
 
     this.add2(
       this.add
-        .text(this.cx, this.px(60), "Who's playing today?", {
+        .text(this.cx, this.top + this.px(50), "Who's playing today?", {
           fontFamily: 'system-ui, sans-serif',
           fontSize: this.fs(44),
           color: '#ffffff',
@@ -52,7 +52,7 @@ export class ProfileScene extends BaseScene {
     const cardH = cardW * 1.05;
     const gapX = this.px(28);
     const gapY = this.px(40);
-    const startY = this.px(150);
+    const startY = this.top + this.px(140);
 
     profiles.forEach((p, i) => {
       const col = i % cols;
@@ -64,7 +64,7 @@ export class ProfileScene extends BaseScene {
     });
 
     this.add2(
-      new Button(this, this.cx, this.H - this.px(70), 'New Player', {
+      new Button(this, this.cx, this.bottom - this.px(60), 'New Player', {
         icon: '➕',
         fill: this.theme.accent,
         textColor: 0x1b1b3a,

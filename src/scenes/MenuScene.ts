@@ -5,6 +5,7 @@ import { addPanel, primaryText, accentText, mutedText, textOn } from '../ui/scen
 import { getTheme, THEMES } from '../config/themes';
 import { Button } from '../ui/Button';
 import { Audio } from '../audio/AudioManager';
+import { Piper } from '../audio/piper';
 import { getSettings, updateSettings } from '../config/settings';
 import { Ambiance } from '../ui/ambiance';
 import { GRADE_BANDS, type Difficulty, type GradeBand, type SubjectId } from '../quiz/types';
@@ -88,10 +89,10 @@ export class MenuScene extends BaseScene {
   }
 
   private get contentTop(): number {
-    return this.px(132);
+    return this.top + this.px(122);
   }
   private get contentBottom(): number {
-    return this.H - this.px(108);
+    return this.bottom - this.px(98);
   }
 
   private add2<T extends Phaser.GameObjects.GameObject>(o: T): T {
@@ -100,9 +101,10 @@ export class MenuScene extends BaseScene {
   }
 
   private header(): void {
-    this.add2(this.add.text(this.px(16), this.px(14), this.profile.avatar, { fontSize: this.fs(40) }));
+    const t = this.top;
+    this.add2(this.add.text(this.px(16), t + this.px(4), this.profile.avatar, { fontSize: this.fs(40) }));
     this.add2(
-      this.add.text(this.px(64), this.px(16), this.profile.name, {
+      this.add.text(this.px(64), t + this.px(6), this.profile.name, {
         fontFamily: 'system-ui, sans-serif',
         fontSize: this.fs(22),
         color: primaryText(this.theme),
@@ -110,18 +112,18 @@ export class MenuScene extends BaseScene {
       }),
     );
     this.add2(
-      this.add.text(this.px(64), this.px(44), `⭐ ${this.profile.totalStars}  🏅 ${this.profile.badges.length}`, {
+      this.add.text(this.px(64), t + this.px(34), `⭐ ${this.profile.totalStars}  🏅 ${this.profile.badges.length}`, {
         fontSize: this.fs(16),
         color: accentText(this.theme),
       }),
     );
 
-    this.iconBtn(this.W - this.px(36), this.px(34), '⚙️', () => this.showSettings());
-    this.iconBtn(this.W - this.px(82), this.px(34), '🔄', () => this.scene.start(SceneKeys.Profile));
+    this.iconBtn(this.W - this.px(36), t + this.px(24), '⚙️', () => this.showSettings());
+    this.iconBtn(this.W - this.px(82), t + this.px(24), '🔄', () => this.scene.start(SceneKeys.Profile));
 
     this.add2(
       this.add
-        .text(this.cx, this.px(78), STEP_TITLES[this.step], {
+        .text(this.cx, t + this.px(68), STEP_TITLES[this.step], {
           fontFamily: 'system-ui, sans-serif',
           fontSize: this.fs(36),
           color: primaryText(this.theme),
@@ -133,7 +135,7 @@ export class MenuScene extends BaseScene {
       this.add2(
         this.add.circle(
           this.cx + (i - (STEP_TITLES.length - 1) / 2) * this.px(30),
-          this.px(112),
+          t + this.px(102),
           this.px(6),
           i === this.step ? this.theme.accent : 0xffffff,
           i === this.step ? 1 : 0.4,
@@ -143,7 +145,7 @@ export class MenuScene extends BaseScene {
   }
 
   private footer(): void {
-    const y = this.H - this.px(50);
+    const y = this.bottom - this.px(40);
     if (this.step > 0) {
       this.add2(
         new Button(this, this.px(110), y, 'Back', {
@@ -558,7 +560,7 @@ export class MenuScene extends BaseScene {
 
   private flashHint(msg: string): void {
     const t = this.add
-      .text(this.cx, this.H - this.px(120), msg, {
+      .text(this.cx, this.bottom - this.px(110), msg, {
         fontFamily: 'system-ui, sans-serif',
         fontSize: this.fs(22),
         color: '#1b1b3a',
@@ -632,12 +634,14 @@ export class MenuScene extends BaseScene {
 
     const toggles: { key: keyof ReturnType<typeof getSettings>; label: string }[] = [
       { key: 'narration', label: '🔊 Read aloud' },
+      { key: 'naturalVoice', label: '🎙️ Natural voice' },
       { key: 'sound', label: '🎵 Sound effects' },
       { key: 'reducedMotion', label: '🐢 Reduce motion' },
       { key: 'dyslexiaFont', label: '🔡 Easy-read font' },
     ];
+    const rowGap = Math.min(this.px(80), (ph - this.px(150)) / toggles.length);
     toggles.forEach((t, i) => {
-      const y = this.cy - ph / 2 + this.px(110) + i * this.px(80);
+      const y = this.cy - ph / 2 + this.px(110) + i * rowGap;
       overlay.add(
         this.add
           .text(this.cx - pw / 2 + this.px(40), y, t.label, {
@@ -655,7 +659,10 @@ export class MenuScene extends BaseScene {
           height: this.px(54),
           fontSize: this.px(22),
           onClick: () => {
-            updateSettings({ [t.key]: !getSettings()[t.key] });
+            const next = !getSettings()[t.key];
+            updateSettings({ [t.key]: next });
+            // Start downloading the neural voice as soon as it's switched on.
+            if (t.key === 'naturalVoice' && next) void Piper.init();
             btn.destroy();
             overlay.add(makeBtn());
           },

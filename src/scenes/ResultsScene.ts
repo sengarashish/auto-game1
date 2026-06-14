@@ -51,9 +51,10 @@ export class ResultsScene extends BaseScene {
       heading = `🎲 Mixed Quiz Complete!`;
     }
 
+    const t = this.top;
     this.add2(
       this.add
-        .text(this.cx, this.px(60), heading, {
+        .text(this.cx, t + this.px(50), heading, {
           fontFamily: 'system-ui, sans-serif',
           fontSize: this.fs(38),
           color: primaryText(this.theme),
@@ -65,7 +66,7 @@ export class ResultsScene extends BaseScene {
     );
 
     // Stars.
-    const starY = this.px(170);
+    const starY = t + this.px(160);
     const starGap = this.px(110);
     for (let i = 0; i < 3; i++) {
       const earned = i < result.stars;
@@ -92,7 +93,7 @@ export class ResultsScene extends BaseScene {
 
     this.add2(
       this.add
-        .text(this.cx, this.px(265), `${result.correctCount} / ${result.total} correct`, {
+        .text(this.cx, t + this.px(255), `${result.correctCount} / ${result.total} correct`, {
           fontFamily: 'system-ui, sans-serif',
           fontSize: this.fs(34),
           color: primaryText(this.theme),
@@ -102,7 +103,7 @@ export class ResultsScene extends BaseScene {
     );
     this.add2(
       this.add
-        .text(this.cx, this.px(308), this.encouragement(result.accuracy), {
+        .text(this.cx, t + this.px(298), this.encouragement(result.accuracy), {
           fontFamily: 'system-ui, sans-serif',
           fontSize: this.fs(24),
           color: accentText(this.theme),
@@ -114,7 +115,7 @@ export class ResultsScene extends BaseScene {
 
     // New badges.
     if (this.resultsData.newBadges.length > 0) {
-      const badgeY = this.px(380);
+      const badgeY = t + this.px(370);
       this.add2(
         this.add
           .text(this.cx, badgeY - this.px(34), 'New Badges!', {
@@ -149,7 +150,7 @@ export class ResultsScene extends BaseScene {
     }
 
     // Actions (stack on narrow screens).
-    const by = this.H - this.px(70);
+    const by = this.bottom - this.px(60);
     if (this.portrait || this.W < 700) {
       this.actionButton(this.cx, by - this.px(50), 'Play Again', '🔁', this.theme.correct, 0xffffff, () => this.playAgain());
       this.actionButton(this.cx, by + this.px(30), 'New Quiz', '🏠', this.theme.accent, 0x1b1b3a, () =>

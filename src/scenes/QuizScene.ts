@@ -62,8 +62,9 @@ export class QuizScene extends BaseScene {
   layout(): void {
     this.hud.removeAll(true);
 
+    const rowY = this.top + this.px(26);
     this.hud.add(
-      new Button(this, this.px(60), this.px(36), 'Quit', {
+      new Button(this, this.px(60), rowY, 'Quit', {
         icon: '🚪',
         fill: 0x44507a,
         width: this.px(110),
@@ -74,22 +75,22 @@ export class QuizScene extends BaseScene {
     );
 
     const barW = Math.min(this.px(460), this.W - this.px(280));
-    this.progressBg = this.add.rectangle(this.cx, this.px(36), barW, this.px(24), 0x000000, 0.3).setOrigin(0.5);
+    this.progressBg = this.add.rectangle(this.cx, rowY, barW, this.px(24), 0x000000, 0.3).setOrigin(0.5);
     this.progressFill = this.add
-      .rectangle(this.cx - barW / 2, this.px(36), this.px(4), this.px(18), this.theme.accent)
+      .rectangle(this.cx - barW / 2, rowY, this.px(4), this.px(18), this.theme.accent)
       .setOrigin(0, 0.5);
     this.hud.add([this.progressBg, this.progressFill]);
 
     this.starText = this.add
-      .text(this.W - this.px(60), this.px(28), '⭐ 0', { fontSize: this.fs(24), color: '#ffd166' })
+      .text(this.W - this.px(60), this.top + this.px(18), '⭐ 0', { fontSize: this.fs(24), color: '#ffd166' })
       .setOrigin(0.5);
     this.streakText = this.add
-      .text(this.W - this.px(60), this.px(58), '', { fontSize: this.fs(20), color: '#ff7b00', fontStyle: 'bold' })
+      .text(this.W - this.px(60), this.top + this.px(48), '', { fontSize: this.fs(20), color: '#ff7b00', fontStyle: 'bold' })
       .setOrigin(0.5);
     this.hud.add([this.starText, this.streakText]);
 
     this.mascot = this.add
-      .text(this.px(70), this.H - this.px(80), this.theme.mascot, { fontSize: this.fs(80) })
+      .text(this.px(70), this.bottom - this.px(70), this.theme.mascot, { fontSize: this.fs(80) })
       .setOrigin(0.5)
       .setInteractive({ useHandCursor: true });
     this.mascot.on('pointerup', () => {
@@ -113,6 +114,11 @@ export class QuizScene extends BaseScene {
     if (this.engine) this.renderBoard();
   }
 
+  /** Y where the question board (prompt panel) begins, below the HUD + inset. */
+  private get boardTop(): number {
+    return this.top + this.px(110);
+  }
+
   private showQuestion(): void {
     this.attempts = 0;
     this.locked = false;
@@ -129,7 +135,7 @@ export class QuizScene extends BaseScene {
 
     this.board.add(
       this.add
-        .text(this.cx, this.px(82), `Question ${this.engine.currentIndex + 1} of ${this.engine.total}`, {
+        .text(this.cx, this.top + this.px(72), `Question ${this.engine.currentIndex + 1} of ${this.engine.total}`, {
           fontFamily: 'system-ui, sans-serif',
           fontSize: this.fs(20),
           color: mutedText(this.theme),
@@ -144,7 +150,7 @@ export class QuizScene extends BaseScene {
   private renderPrompt(q: Question): void {
     const panelW = Math.min(this.px(820), this.W - this.px(40));
     const panelH = this.portrait ? this.px(180) : this.px(190);
-    const panelY = this.px(120) + panelH / 2;
+    const panelY = this.boardTop + panelH / 2;
 
     this.board.add(addPanel(this, this.cx, panelY, panelW, panelH, this.theme.panel, 1, this.px(24)));
 
@@ -190,8 +196,8 @@ export class QuizScene extends BaseScene {
     const cols = this.portrait || this.W < 720 ? 1 : 2;
     const rows = Math.ceil(n / cols);
 
-    const areaTop = this.px(120) + (this.portrait ? this.px(180) : this.px(190)) + this.px(30);
-    const areaBottom = this.H - this.px(120);
+    const areaTop = this.boardTop + (this.portrait ? this.px(180) : this.px(190)) + this.px(30);
+    const areaBottom = this.bottom - this.px(100);
     const areaH = areaBottom - areaTop;
     const gapX = this.px(24);
     const gapY = this.px(14);
@@ -212,6 +218,7 @@ export class QuizScene extends BaseScene {
         width: btnW,
         height: btnH,
         fontSize: this.px(28),
+        speak: choice.label,
         onClick: () => this.onAnswer(choice, btn),
       });
       this.board.add(btn);
@@ -331,7 +338,7 @@ export class QuizScene extends BaseScene {
     const phrase = phrases[Math.floor(Math.random() * phrases.length)];
     this.cleanupTag('bubble');
     const bubble = this.add
-      .text(this.px(150), this.H - this.px(150), phrase, {
+      .text(this.px(150), this.bottom - this.px(140), phrase, {
         fontFamily: 'system-ui, sans-serif',
         fontSize: this.fs(22),
         color: '#1b1b3a',
